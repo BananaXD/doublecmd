@@ -337,6 +337,7 @@ type
    procedure cm_ChangeDirToHome(const Params: array of string);
    procedure cm_ChangeDirToParent(const Params: array of string);
    procedure cm_ChangeDir(const Params: array of string);
+   procedure cm_AddPathAlias(const Params: array of string);
    procedure cm_ClearLogWindow(const Params: array of string);
    procedure cm_ClearLogFile(const Params: array of string);
    procedure cm_NetworkConnect(const Params: array of string);
@@ -4593,6 +4594,33 @@ end;
 procedure TMainCommands.cm_ChangeDirToParent(const Params: array of string);
 begin
   frmMain.ActiveFrame.ChangePathToParent(True);
+end;
+
+// Ask for a name and save the current directory as a path alias,
+// usable from the quick search bar as "/name"
+procedure TMainCommands.cm_AddPathAlias(const Params: array of string);
+var
+  AName, APath: String;
+begin
+  if not frmMain.ActiveFrame.FileSource.IsClass(TFileSystemFileSource) then
+  begin
+    msgWarning(rsMsgErrNotSupported);
+    Exit;
+  end;
+
+  APath := ExcludeTrailingPathDelimiter(frmMain.ActiveFrame.CurrentPath);
+  if APath = EmptyStr then Exit;
+
+  AName := ExtractFileName(APath);
+  if ShowInputQuery(rsMsgTitleAddPathAlias, Format(rsMsgPromptAddPathAlias, [APath]), AName) then
+  begin
+    AName := Trim(AName);
+    // tolerate typing the alias with its "/" prefix
+    if (AName <> EmptyStr) and (AName[1] = PathDelim) then
+      Delete(AName, 1, 1);
+    if AName <> EmptyStr then
+      gPathAliases.Values[AName] := APath;
+  end;
 end;
 
 // Parameters:

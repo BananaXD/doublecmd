@@ -533,6 +533,15 @@ resourcestring
   rsFilterStatus = 'FILTER';
   rsSearchStatus = 'SEARCH';
 
+  // Quick search bar modes
+  rsQuickSearchModeCommand = 'Command:';
+  rsQuickSearchModeGoTo = 'Go to:';
+
+  // Path aliases
+  rsMsgTitleAddPathAlias = 'Add path alias';
+  rsMsgPromptAddPathAlias = 'Alias name for "%s":';
+  rsMnuOpenInTerminal = 'Open in terminal';
+
   // Cancel operations in file panel
   rsCancelFilter = 'Cancel Quick Filter';
   rsCancelOperation = 'Cancel Current Operation';

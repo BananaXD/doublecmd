@@ -74,6 +74,7 @@ type
 
   TfrmMain = class(TAloneForm, IFormCommands)
     actAddPlugin: TAction;
+    actAddPathAlias: TAction;
     actAddToStash: TAction;
     actEmptyStash: TAction;
     actRemoveFromStash: TAction;

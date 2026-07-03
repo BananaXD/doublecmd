@@ -10,6 +10,13 @@ uses
 
 type
   TQuickSearchMode = (qsSearch, qsFilter, qsNone);
+  {en
+     Mode of the bar itself, selected by the first typed character
+     (Directory Opus style find-as-you-type field):
+     no prefix - find/filter as before, '>' - execute internal command,
+     '/' or '~' - go to path (with alias support).
+  }
+  TQuickBarMode = (qbmSearch, qbmCommand, qbmGoTo);
   TQuickSearchDirection = (qsdNone, qsdFirst, qsdLast, qsdNext, qsdPrevious);
   TQuickSearchMatch = (qsmBeginning, qsmEnding);
   TQuickSearchCase = (qscSensitive, qscInsensitive);
@@ -30,6 +37,7 @@ type
   TOnChangeFilter = procedure(Sender: TObject; AFilterText: String; const AFilterOptions: TQuickSearchOptions) of Object;
   TOnExecute = procedure(Sender: TObject) of Object;
   TOnHide = procedure(Sender: TObject) of Object;
+  TOnGoToPath = procedure(Sender: TObject; const APath: String) of Object;
 
   { TfrmQuickSearch }
 
@@ -69,6 +77,50 @@ type
     FUpdateCount: Integer;
     FNeedsChangeSearch: Boolean;
     FIntendedLeave: Boolean;
+    FBarMode: TQuickBarMode;
+    FPrefixFilter: Boolean;
+    FPendingCommand: String;
+    lblMode: TLabel;
+    lsCommands: TListBox;
+    FCommandCache: TStringList;
+    FCommandCaptions: TStringList;
+    {en
+       Value behind each visible dropdown row: command name in command
+       mode, target path in go-to mode
+    }
+    FDropdownValues: TStringList;
+    FDropdownPicked: Boolean;
+    {en
+       Detects the bar mode from the first character of the typed text
+    }
+    procedure UpdateBarMode;
+    procedure UpdateModeLabel;
+    {en
+       Text to search/filter by, with the mode prefix stripped
+    }
+    function GetSearchableText: String;
+    procedure EnsureCommandCache;
+    procedure UpdateCommandList;
+    procedure UpdateAliasList;
+    procedure ShowDropdown;
+    procedure HideCommandList;
+    procedure MoveCommandSelection(ADelta: Integer);
+    procedure ExecuteSelectedCommand;
+    procedure ExecutePendingCommand(Data: PtrInt);
+    procedure lsCommandsDblClick(Sender: TObject);
+    procedure DoGoToPath;
+    {en
+       Expands "~" and path aliases ("/name" -> aliased path)
+    }
+    function ResolveGoToPath(const S: String): String;
+    {en
+       Does the typed text mean "go to a path"?
+    }
+    function IsGoToText(const S: String): Boolean;
+    {en
+       Index of the first path separator at or after FromPos, 0 if none
+    }
+    function FindPathSeparator(const S: String; FromPos: Integer): Integer;
     procedure BeginUpdate;
     procedure CheckFilesOrDirectoriesDown;
     procedure EndUpdate;
@@ -91,6 +143,7 @@ type
     OnChangeFilter: TOnChangeFilter;
     OnExecute: TOnExecute;
     OnHide: TOnHide;
+    OnGoToPath: TOnGoToPath;
     constructor Create(TheOwner: TWinControl); reintroduce;
     destructor Destroy; override;
     procedure CloneTo(AQuickSearch: TfrmQuickSearch);
@@ -109,10 +162,14 @@ type
 implementation
 
 uses
-  LazUTF8,
+  Math, Graphics, LazUTF8,
+  DCOSUtils,
   uKeyboard,
   uGlobs,
-  uFormCommands
+  uLng,
+  uSysFolders,
+  uFormCommands,
+  fMain, uMainCommands
 {$IF DEFINED(LCLQT) or DEFINED(LCLQT5) or DEFINED(LCLQT6)}
   , uFileView
 {$ENDIF}
@@ -152,6 +209,21 @@ const
   FIRST_VALUE = 'first';
   LAST_VALUE = 'last';
   NEXT_VALUE = 'next';
+
+  // bar mode prefixes (Directory Opus style find-as-you-type field)
+  CMD_MODE_PREFIX    = '>';  // execute internal command
+  PATH_MODE_PREFIX   = '/';  // go to path / path alias
+  PATH_MODE_HOME     = '~';  // go to path relative to home directory
+  FILTER_MODE_PREFIX = '*';  // switch into filter mode
+
+  // characters accepted as path separators when splitting "/alias/subpath"
+{$IFDEF MSWINDOWS}
+  PATH_SEPARATORS = ['/', '\'];
+{$ELSE}
+  PATH_SEPARATORS = ['/'];
+{$ENDIF}
+
+  MAX_VISIBLE_COMMANDS = 10;
 
 {$R *.lfm}
 
@@ -197,6 +269,30 @@ begin
   FilterText := EmptyStr;
   Finalizing := False;
 
+  FBarMode := qbmSearch;
+
+  // mode indicator to the left of the edit box
+  lblMode := TLabel.Create(Self);
+  lblMode.Parent := Self;
+  lblMode.AutoSize := True;
+  lblMode.Caption := EmptyStr;
+  lblMode.Font.Style := [fsBold];
+  lblMode.AnchorSideLeft.Control := Self;
+  lblMode.AnchorSideTop.Control := edtSearch;
+  lblMode.AnchorSideTop.Side := asrCenter;
+  lblMode.BorderSpacing.Left := 4;
+  edtSearch.AnchorSideLeft.Control := lblMode;
+  edtSearch.AnchorSideLeft.Side := asrBottom;
+
+  // command palette dropdown, shown above the bar in command mode
+  lsCommands := TListBox.Create(Self);
+  lsCommands.Parent := TheOwner;
+  lsCommands.Visible := False;
+  lsCommands.TabStop := False;
+  lsCommands.OnDblClick := @lsCommandsDblClick;
+
+  FDropdownValues := TStringList.Create;
+
   HotMan.Register(Self.edtSearch, 'Quick Search');
 end;
 
@@ -204,6 +300,11 @@ destructor TfrmQuickSearch.Destroy;
 begin
   if Assigned(HotMan) then
     HotMan.UnRegister(Self.edtSearch);
+
+  Application.RemoveAsyncCalls(Self);
+  FreeAndNil(FCommandCache);
+  FreeAndNil(FCommandCaptions);
+  FreeAndNil(FDropdownValues);
 
   inherited Destroy;
 end;
@@ -228,6 +329,9 @@ begin
   AQuickSearch.tglFilter.OnChange := nil;
   AQuickSearch.tglFilter.Checked := Self.tglFilter.Checked;
   AQuickSearch.tglFilter.OnChange := TempEvent;
+  AQuickSearch.FBarMode := Self.FBarMode;
+  AQuickSearch.FPrefixFilter := Self.FPrefixFilter;
+  AQuickSearch.UpdateModeLabel;
   AQuickSearch.Visible := Self.Visible;
 
   // Do not clone LimitedAutoHide but honor it instead, because it depends on the parent fileview
@@ -237,6 +341,10 @@ end;
 
 procedure TfrmQuickSearch.DoOnChangeSearch;
 begin
+  // in command and go-to modes nothing is searched while typing
+  if FBarMode <> qbmSearch then
+    Exit;
+
   if FUpdateCount > 0 then
     FNeedsChangeSearch := True
   else
@@ -245,10 +353,10 @@ begin
     case Self.Mode of
       qsSearch:
         if Assigned(Self.OnChangeSearch) then
-          Self.OnChangeSearch(Self, edtSearch.Text, Options);
+          Self.OnChangeSearch(Self, GetSearchableText, Options);
       qsFilter:
         if Assigned(Self.OnChangeFilter) then
-          Self.OnChangeFilter(Self, edtSearch.Text, Options);
+          Self.OnChangeFilter(Self, GetSearchableText, Options);
     end;
     FNeedsChangeSearch := False;
   end;
@@ -283,6 +391,7 @@ end;
 
 procedure TfrmQuickSearch.Finalize;
 begin
+  HideCommandList;
   Reset;
   Hide;
 end;
@@ -600,8 +709,19 @@ end;
 
 procedure TfrmQuickSearch.edtSearchChange(Sender: TObject);
 begin
-  Options.Direction := qsdNone;
-  DoOnChangeSearch;
+  UpdateBarMode;
+
+  case FBarMode of
+    qbmCommand:
+      UpdateCommandList;
+    qbmGoTo:
+      UpdateAliasList; // navigation happens on Enter only
+    else
+    begin
+      Options.Direction := qsdNone;
+      DoOnChangeSearch;
+    end;
+  end;
 end;
 
 procedure TfrmQuickSearch.BeginUpdate;
@@ -620,6 +740,52 @@ begin
   if CheckSearchOrFilter(Key) then
     Exit;
 
+  case FBarMode of
+    qbmCommand:
+      case Key of
+        VK_DOWN:
+        begin
+          Key := 0;
+          MoveCommandSelection(1);
+          Exit;
+        end;
+        VK_UP:
+        begin
+          Key := 0;
+          MoveCommandSelection(-1);
+          Exit;
+        end;
+        VK_RETURN, VK_SELECT:
+        begin
+          Key := 0;
+          ExecuteSelectedCommand;
+          Exit;
+        end;
+      end;
+    qbmGoTo:
+      case Key of
+        VK_RETURN, VK_SELECT:
+        begin
+          Key := 0;
+          DoGoToPath;
+          Exit;
+        end;
+        VK_DOWN:
+        begin
+          Key := 0;
+          MoveCommandSelection(1);
+          Exit;
+        end;
+        VK_UP:
+        begin
+          Key := 0;
+          MoveCommandSelection(-1);
+          Exit;
+        end;
+      end;
+    qbmSearch: ; // handled below
+  end;
+
   case Key of
     VK_DOWN:
     begin
@@ -628,7 +794,7 @@ begin
       if Assigned(Self.OnChangeSearch) then
       begin
         Options.Direction:=qsdNext;
-        Self.OnChangeSearch(Self, edtSearch.Text, Options, ssShift in Shift);
+        Self.OnChangeSearch(Self, GetSearchableText, Options, ssShift in Shift);
       end;
     end;
 
@@ -639,7 +805,7 @@ begin
       if Assigned(Self.OnChangeSearch) then
       begin
         Options.Direction:=qsdPrevious;
-        Self.OnChangeSearch(Self, edtSearch.Text, Options, ssShift in Shift);
+        Self.OnChangeSearch(Self, GetSearchableText, Options, ssShift in Shift);
       end;
     end;
 
@@ -654,7 +820,7 @@ begin
         if Assigned(Self.OnChangeSearch) then
         begin
           Options.Direction := qsdFirst;
-          Self.OnChangeSearch(Self, edtSearch.Text, Options, ssShift in Shift);
+          Self.OnChangeSearch(Self, GetSearchableText, Options, ssShift in Shift);
         end;
       end;
     end;
@@ -670,7 +836,7 @@ begin
         if Assigned(Self.OnChangeSearch) then
         begin
           Options.Direction := qsdLast;
-          Self.OnChangeSearch(Self, edtSearch.Text, Options, ssShift in Shift);
+          Self.OnChangeSearch(Self, GetSearchableText, Options, ssShift in Shift);
         end;
       end;
     end;
@@ -684,7 +850,7 @@ begin
         if Assigned(Self.OnChangeSearch) then
         begin
           Options.Direction := qsdNext;
-          Self.OnChangeSearch(Self, edtSearch.Text, Options, True);
+          Self.OnChangeSearch(Self, GetSearchableText, Options, True);
         end;
       end;
     end;
@@ -736,6 +902,14 @@ procedure TfrmQuickSearch.FrameExit(Sender: TObject);
 var
   DontHide: Boolean;
 begin
+  // clicking the command palette must not close the bar
+  if Assigned(lsCommands) and
+     (lsCommands.Focused or (Screen.ActiveControl = lsCommands)) then
+  begin
+    Application.QueueAsyncCall(@SetFocus, 0);
+    Exit;
+  end;
+
 {$IF DEFINED(LCLQT) or DEFINED(LCLQT5) or DEFINED(LCLQT6)}
   // Workaround: QuickSearch frame lose focus on SpeedButton click
   if Screen.ActiveControl is TFileView then
@@ -872,6 +1046,397 @@ procedure TfrmQuickSearch.btnCancelMouseUp(Sender: TObject;
   Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 begin
   if Self.Visible then Application.QueueAsyncCall(@SetFocus, 0);
+end;
+
+procedure TfrmQuickSearch.UpdateBarMode;
+var
+  S: String;
+  NewMode: TQuickBarMode;
+begin
+  S := edtSearch.Text;
+
+  if (S <> EmptyStr) and (S[1] = CMD_MODE_PREFIX) then
+    NewMode := qbmCommand
+  else if IsGoToText(S) then
+    NewMode := qbmGoTo
+  else
+    NewMode := qbmSearch;
+
+  if NewMode <> FBarMode then
+  begin
+    FBarMode := NewMode;
+    if FBarMode <> qbmCommand then
+      HideCommandList;
+    UpdateModeLabel;
+  end;
+
+  // a leading '*' switches into (and back out of) filter mode
+  if FBarMode = qbmSearch then
+  begin
+    if (S <> EmptyStr) and (S[1] = FILTER_MODE_PREFIX) then
+    begin
+      if not tglFilter.Checked then
+      begin
+        FPrefixFilter := True;
+        tglFilter.Checked := True; // triggers tglFilterChange
+      end;
+    end
+    else if FPrefixFilter then
+    begin
+      FPrefixFilter := False;
+      if tglFilter.Checked then
+        tglFilter.Checked := False;
+    end;
+  end;
+end;
+
+procedure TfrmQuickSearch.UpdateModeLabel;
+begin
+  case FBarMode of
+    qbmCommand:
+      lblMode.Caption := rsQuickSearchModeCommand;
+    qbmGoTo:
+      lblMode.Caption := rsQuickSearchModeGoTo;
+    else
+      lblMode.Caption := EmptyStr;
+  end;
+end;
+
+function TfrmQuickSearch.GetSearchableText: String;
+begin
+  Result := edtSearch.Text;
+  if FPrefixFilter and (Result <> EmptyStr) and (Result[1] = FILTER_MODE_PREFIX) then
+    Delete(Result, 1, 1);
+end;
+
+procedure TfrmQuickSearch.EnsureCommandCache;
+var
+  I: Integer;
+  List: TStringList;
+begin
+  if Assigned(FCommandCache) then
+    Exit;
+
+  FCommandCache := TStringList.Create;
+  FCommandCaptions := TStringList.Create;
+
+  List := TStringList.Create;
+  try
+    frmMain.Commands.Commands.GetCommandsList(List);
+    List.Sort;
+    for I := 0 to List.Count - 1 do
+    begin
+      FCommandCache.Add(List[I]);
+      FCommandCaptions.Add(frmMain.Commands.Commands.GetCommandCaption(List[I], cctShort));
+    end;
+  finally
+    List.Free;
+  end;
+end;
+
+procedure TfrmQuickSearch.UpdateCommandList;
+var
+  I, P: Integer;
+  Filter, CmdName: String;
+
+  function MakeItem(Index: Integer): String;
+  begin
+    Result := FCommandCache[Index];
+    if FCommandCaptions[Index] <> EmptyStr then
+      Result := Result + '   -   ' + FCommandCaptions[Index];
+  end;
+
+begin
+  EnsureCommandCache;
+
+  Filter := UTF8LowerCase(Trim(Copy(edtSearch.Text, 2, MaxInt)));
+
+  lsCommands.Items.BeginUpdate;
+  try
+    lsCommands.Items.Clear;
+    FDropdownValues.Clear;
+    // commands whose name begins with the typed text come first...
+    for I := 0 to FCommandCache.Count - 1 do
+    begin
+      CmdName := UTF8LowerCase(FCommandCache[I]);
+      P := Pos(Filter, CmdName);
+      if (Filter = EmptyStr) or (P = 1) or (P = 4) then // 4 = right after 'cm_'
+      begin
+        lsCommands.Items.Add(MakeItem(I));
+        FDropdownValues.Add(FCommandCache[I]);
+      end;
+    end;
+    // ...then matches elsewhere in the name or in the caption
+    if Filter <> EmptyStr then
+      for I := 0 to FCommandCache.Count - 1 do
+      begin
+        CmdName := UTF8LowerCase(FCommandCache[I]);
+        P := Pos(Filter, CmdName);
+        if ((P > 1) and (P <> 4)) or
+           ((P = 0) and (Pos(Filter, UTF8LowerCase(FCommandCaptions[I])) > 0)) then
+        begin
+          lsCommands.Items.Add(MakeItem(I));
+          FDropdownValues.Add(FCommandCache[I]);
+        end;
+      end;
+  finally
+    lsCommands.Items.EndUpdate;
+  end;
+
+  ShowDropdown;
+end;
+
+procedure TfrmQuickSearch.UpdateAliasList;
+var
+  I: Integer;
+  S, Typed, AName: String;
+
+  procedure AddAlias(Index: Integer);
+  begin
+    lsCommands.Items.Add(PATH_MODE_PREFIX + gPathAliases.Names[Index] +
+                         '   -   ' + gPathAliases.ValueFromIndex[Index]);
+    FDropdownValues.Add(gPathAliases.ValueFromIndex[Index]);
+  end;
+
+begin
+  S := edtSearch.Text;
+
+  // aliases apply to "/..." (and "\..." on Windows) only, and only while
+  // typing the first segment (no subpath yet, not an "=" alias definition)
+  if (S = EmptyStr) or (not (S[1] in PATH_SEPARATORS)) or
+     (Pos('=', S) > 0) or (FindPathSeparator(S, 2) > 0) then
+  begin
+    HideCommandList;
+    Exit;
+  end;
+
+  Typed := UTF8LowerCase(Copy(S, 2, MaxInt));
+
+  lsCommands.Items.BeginUpdate;
+  try
+    lsCommands.Items.Clear;
+    FDropdownValues.Clear;
+    // aliases whose name begins with the typed text come first...
+    for I := 0 to gPathAliases.Count - 1 do
+    begin
+      AName := UTF8LowerCase(gPathAliases.Names[I]);
+      if (Typed = EmptyStr) or (Pos(Typed, AName) = 1) then
+        AddAlias(I);
+    end;
+    // ...then matches elsewhere in the name
+    if Typed <> EmptyStr then
+      for I := 0 to gPathAliases.Count - 1 do
+      begin
+        AName := UTF8LowerCase(gPathAliases.Names[I]);
+        if Pos(Typed, AName) > 1 then
+          AddAlias(I);
+      end;
+  finally
+    lsCommands.Items.EndUpdate;
+  end;
+
+  ShowDropdown;
+end;
+
+procedure TfrmQuickSearch.ShowDropdown;
+var
+  AItemHeight, ListHeight: Integer;
+begin
+  FDropdownPicked := False;
+
+  if lsCommands.Items.Count = 0 then
+    HideCommandList
+  else
+  begin
+    AItemHeight := lsCommands.ItemHeight;
+    if AItemHeight <= 0 then
+      AItemHeight := lsCommands.Canvas.TextHeight('Wg') + 2;
+    ListHeight := Min(MAX_VISIBLE_COMMANDS, lsCommands.Items.Count) * AItemHeight + 8;
+    if ListHeight > Top then
+      ListHeight := Max(AItemHeight, Top);
+    lsCommands.SetBounds(Left, Top - ListHeight, Width, ListHeight);
+    lsCommands.Visible := True;
+    lsCommands.BringToFront;
+    lsCommands.ItemIndex := 0;
+  end;
+end;
+
+procedure TfrmQuickSearch.HideCommandList;
+begin
+  FDropdownPicked := False;
+  if Assigned(lsCommands) then
+    lsCommands.Visible := False;
+end;
+
+procedure TfrmQuickSearch.MoveCommandSelection(ADelta: Integer);
+var
+  NewIndex: Integer;
+begin
+  if (not lsCommands.Visible) or (lsCommands.Items.Count = 0) then
+    Exit;
+
+  FDropdownPicked := True;
+  NewIndex := lsCommands.ItemIndex + ADelta;
+  if NewIndex < 0 then
+    NewIndex := lsCommands.Items.Count - 1
+  else if NewIndex >= lsCommands.Items.Count then
+    NewIndex := 0;
+  lsCommands.ItemIndex := NewIndex;
+end;
+
+procedure TfrmQuickSearch.ExecuteSelectedCommand;
+var
+  CmdName: String;
+begin
+  if lsCommands.Visible and (lsCommands.ItemIndex >= 0) and
+     (lsCommands.ItemIndex < FDropdownValues.Count) then
+    CmdName := FDropdownValues[lsCommands.ItemIndex]
+  else
+    CmdName := Trim(Copy(edtSearch.Text, 2, MaxInt));
+
+  CancelFilter;
+
+  if CmdName <> EmptyStr then
+  begin
+    // execute after the file panel got focus back
+    FPendingCommand := CmdName;
+    Application.QueueAsyncCall(@ExecutePendingCommand, 0);
+  end;
+end;
+
+procedure TfrmQuickSearch.ExecutePendingCommand(Data: PtrInt);
+begin
+  if FPendingCommand <> EmptyStr then
+    frmMain.Commands.Commands.ExecuteCommand(FPendingCommand, []);
+  FPendingCommand := EmptyStr;
+end;
+
+procedure TfrmQuickSearch.lsCommandsDblClick(Sender: TObject);
+begin
+  case FBarMode of
+    qbmCommand: ExecuteSelectedCommand;
+    qbmGoTo:
+      begin
+        FDropdownPicked := True; // an explicit click always wins
+        DoGoToPath;
+      end;
+  end;
+end;
+
+procedure TfrmQuickSearch.DoGoToPath;
+var
+  S, AName, AValue, Path: String;
+  P: Integer;
+begin
+  S := Trim(edtSearch.Text);
+
+  // "/name=path" defines an alias, "/name=" removes it
+  if (Length(S) > 1) and (S[1] = PATH_MODE_PREFIX) then
+  begin
+    P := Pos('=', S);
+    if P > 2 then
+    begin
+      AName := Copy(S, 2, P - 2);
+      AValue := Trim(Copy(S, P + 1, MaxInt));
+      if AValue = EmptyStr then
+      begin
+        P := gPathAliases.IndexOfName(AName);
+        if P >= 0 then
+          gPathAliases.Delete(P);
+      end
+      else
+        gPathAliases.Values[AName] := ExcludeTrailingPathDelimiter(AValue);
+      CancelFilter;
+      Exit;
+    end;
+  end;
+
+  Path := ResolveGoToPath(S);
+
+  // Take the highlighted dropdown suggestion instead, unless the typed text
+  // already resolves by itself (exact alias or existing path). An entry
+  // explicitly picked with the arrow keys or the mouse always wins.
+  if lsCommands.Visible and (lsCommands.ItemIndex >= 0) and
+     (lsCommands.ItemIndex < FDropdownValues.Count) then
+  begin
+    if FDropdownPicked or ((Path = S) and not mbDirectoryExists(S)) then
+      Path := FDropdownValues[lsCommands.ItemIndex];
+  end;
+
+  CancelFilter;
+
+  if (Path <> EmptyStr) and Assigned(OnGoToPath) then
+    OnGoToPath(Self, Path);
+end;
+
+function TfrmQuickSearch.IsGoToText(const S: String): Boolean;
+begin
+  if S = EmptyStr then
+    Exit(False);
+
+  Result := (S[1] = PATH_MODE_PREFIX) or (S[1] = PATH_MODE_HOME)
+{$IFDEF MSWINDOWS}
+    // "\path" - path on the current drive
+    or (S[1] = '\')
+    // "C:", "C:\path" - path with a drive letter
+    or ((Length(S) >= 2) and (S[2] = ':') and (UpCase(S[1]) in ['A'..'Z']))
+{$ENDIF}
+    ;
+end;
+
+function TfrmQuickSearch.FindPathSeparator(const S: String; FromPos: Integer): Integer;
+begin
+  for Result := FromPos to Length(S) do
+    if S[Result] in PATH_SEPARATORS then
+      Exit;
+  Result := 0;
+end;
+
+function TfrmQuickSearch.ResolveGoToPath(const S: String): String;
+var
+  P: Integer;
+  First, Rest, Alias: String;
+begin
+  Result := S;
+  if S = EmptyStr then
+    Exit;
+
+  // expand "~" to the home directory
+  if S[1] = PATH_MODE_HOME then
+  begin
+    if Length(S) = 1 then
+      Result := GetHomeDir
+    else if S[2] in ['/', '\'] then
+      Result := IncludeTrailingPathDelimiter(GetHomeDir) + Copy(S, 3, MaxInt);
+    Exit;
+  end;
+
+{$IFDEF MSWINDOWS}
+  // "C:", "C:\path" - already a full path
+  if (Length(S) >= 2) and (S[2] = ':') then
+    Exit;
+{$ENDIF}
+
+  if not (S[1] in PATH_SEPARATORS) then
+    Exit;
+
+  // "/name[/rest]" - look up "name" in the path aliases;
+  // if nothing matches the text is left as typed (a literal path)
+  P := FindPathSeparator(S, 2);
+  if P = 0 then
+  begin
+    First := Copy(S, 2, MaxInt);
+    Rest := EmptyStr;
+  end
+  else
+  begin
+    First := Copy(S, 2, P - 2);
+    Rest := Copy(S, P, MaxInt);
+  end;
+
+  Alias := gPathAliases.Values[First];
+  if Alias <> EmptyStr then
+    Result := Alias + Rest;
 end;
 
 end.

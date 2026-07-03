@@ -1269,6 +1269,31 @@ var
       Result := False;
   end;
 
+  {en
+     Checks if the pressed shortcut is explicitly assigned to a command
+     (on the active control or the form). Such assignments take precedence
+     over key typing actions (quick search/filter/command line).
+  }
+  function HasExplicitHotkey: Boolean;
+  var
+    j: Integer;
+    Sequence: TDynamicStringArray;
+  begin
+    SetLength(Sequence, 1);
+    Sequence[0] := TextShortcut;
+    if Assigned(Control) then
+      for j := 0 to HMForm.Controls.Count - 1 do
+      begin
+        if Assigned(HMForm.Controls[j].Find(Control)) then
+        begin
+          if Assigned(HMForm.Controls[j].Hotkeys.FindByBeginning(Sequence, False)) then
+            Exit(True);
+          Break;
+        end;
+      end;
+    Result := Assigned(HMForm.Hotkeys.FindByBeginning(Sequence, False));
+  end;
+
 begin
   Form := GetParentForm(Sender as TWinControl);
   HMForm := FForms.Find(Form);
@@ -1280,10 +1305,12 @@ begin
   TextShortcut := ShortCutToTextEx(Shortcut);
   Control      := Form.ActiveControl;
 
-  // Don't execute hotkeys that coincide with key typing actions.
+  // Don't execute hotkeys that coincide with key typing actions,
+  // unless the shortcut is explicitly assigned to a command.
   if (TextShortcut <> '') and
      ((FSequenceStep > 0) or
-     (not ((((GetKeyTypingAction(ShiftEx) <> ktaNone) and (HMForm.Name = 'Main'))
+     (not ((((GetKeyTypingAction(ShiftEx) <> ktaNone) and (HMForm.Name = 'Main') and
+      (not HasExplicitHotkey))
 {$IFDEF MSWINDOWS}
       // Don't execute hotkeys with Ctrl+Alt = AltGr on Windows.
       or (HasKeyboardAltGrKey and

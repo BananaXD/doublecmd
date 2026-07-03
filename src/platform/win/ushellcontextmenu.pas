@@ -750,6 +750,11 @@ begin
                 // Add menu separator
                 InsertMenuItemEx(FShellMenu, 0, nil, 4, 0, MFT_SEPARATOR);
               end;
+
+              // Add "Open in terminal" (current directory) after "Refresh"
+              I := InnerExtActionList.Add(TExtActionCommand.Create(rsMnuOpenInTerminal, 'cm_RunTerm', '', ''));
+              InsertMenuItemEx(FShellMenu, 0, PWideChar(CeUtf8ToUtf16(rsMnuOpenInTerminal)), 1, I + USER_CMD_ID, MFT_STRING);
+
               I:= 0;
             end
             else  // Add "Actions" submenu
@@ -779,6 +784,15 @@ begin
               if (FUserWishForContextMenu = uwcmComplete) and (iActionsItemsCount > 0) then
               begin
                 InsertMenuItemEx(FShellMenu, hActionsSubMenu, PWideChar(CeUtf8ToUtf16(rsMnuActions)), I, 333, MFT_STRING);
+                Inc(I);
+              end;
+
+              // Add "Open in terminal" for directories (terminal starts in the clicked folder)
+              if (FUserWishForContextMenu = uwcmComplete) and
+                 (aFile.IsDirectory or aFile.IsLinkToDirectory) then
+              begin
+                iCmd := InnerExtActionList.Add(TExtActionCommand.Create(rsMnuOpenInTerminal, gRunTermCmd, gRunTermParams, aFile.FullPath));
+                InsertMenuItemEx(FShellMenu, 0, PWideChar(CeUtf8ToUtf16(rsMnuOpenInTerminal)), I, iCmd + USER_CMD_ID, MFT_STRING);
                 Inc(I);
               end;
             end;

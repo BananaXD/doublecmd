@@ -48,6 +48,7 @@ type
     procedure quickSearchChangeSearch(Sender: TObject; ASearchText: String; const ASearchOptions: TQuickSearchOptions; InvertSelection: Boolean = False);
     procedure quickSearchChangeFilter(Sender: TObject; AFilterText: String; const AFilterOptions: TQuickSearchOptions);
     procedure quickSearchExecute(Sender: TObject);
+    procedure quickSearchGoToPath(Sender: TObject; const APath: String);
     procedure quickSearchHide(Sender: TObject);
     procedure UpdateRangeSelectionState;
 
@@ -128,6 +129,7 @@ uses
   DCOSUtils, 
   uLng, uGlobs, uMasks, uDCUtils,
   uFileSourceProperty,
+  uFileSourceUtil,
   uPixMapManager,
   uFileViewWorker,
   uFileProperty,
@@ -276,6 +278,7 @@ begin
   quickSearch.OnChangeSearch := @quickSearchChangeSearch;
   quickSearch.OnChangeFilter := @quickSearchChangeFilter;
   quickSearch.OnExecute      := @quickSearchExecute;
+  quickSearch.OnGoToPath     := @quickSearchGoToPath;
   quickSearch.OnHide         := @quickSearchHide;
 
   pmOperationsCancel := TPopupMenu.Create(Self);
@@ -630,6 +633,29 @@ procedure TOrderedFileView.quickSearchExecute(Sender: TObject);
 begin
   Active := True;
   ChooseFile(GetActiveDisplayFile);
+end;
+
+procedure TOrderedFileView.quickSearchGoToPath(Sender: TObject; const APath: String);
+var
+  TargetPath: String;
+{$IFDEF MSWINDOWS}
+  Drive: String;
+{$ENDIF}
+begin
+  Active := True;
+  TargetPath := ReplaceEnvVars(APath);
+{$IFDEF MSWINDOWS}
+  // "\path" (or "/path" with no alias) - path on the current drive;
+  // leave UNC paths ("\\server\share") alone
+  if (Length(TargetPath) > 0) and (TargetPath[1] in ['\', '/']) and
+     not ((Length(TargetPath) > 1) and (TargetPath[2] in ['\', '/'])) then
+  begin
+    Drive := ExtractFileDrive(CurrentPath);
+    if Drive = EmptyStr then Drive := 'C:';
+    TargetPath := Drive + TargetPath;
+  end;
+{$ENDIF}
+  ChooseFileSource(Self, TargetPath);
 end;
 
 procedure TOrderedFileView.quickSearchHide(Sender: TObject);

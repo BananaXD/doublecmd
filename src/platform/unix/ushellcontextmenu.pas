@@ -56,6 +56,7 @@ type
     procedure DriveEjectSelect(Sender: TObject);
     procedure OpenWithOtherSelect(Sender: TObject);
     procedure OpenWithMenuItemSelect(Sender: TObject);
+    procedure OpenInTerminalSelect(Sender: TObject);
   private
     procedure LeaveDrive;
     function FillOpenWithSubMenu: Boolean;
@@ -340,6 +341,16 @@ procedure TShellContextMenu.DriveEjectSelect(Sender: TObject);
 begin
   LeaveDrive;
   EjectDrive(@FDrive);
+end;
+
+procedure TShellContextMenu.OpenInTerminalSelect(Sender: TObject);
+begin
+  try
+    ProcessExtCommandFork(gRunTermCmd, gRunTermParams, (Sender as TMenuItem).Hint);
+  except
+    on e: EInvalidCommandLine do
+      msgError(rsToolErrorOpeningTerminal + ':' + LineEnding + e.Message);
+  end;
 end;
 
 procedure TShellContextMenu.OpenWithOtherSelect(Sender: TObject);
@@ -951,6 +962,17 @@ begin
         // Add delimiter menu
         addDelimiterMenuItem( self );
 
+        // Add "Open in terminal" for directories
+        if (aFile.IsDirectory or aFile.IsLinkToDirectory) and
+           frmMain.ActiveFrame.FileSource.IsClass(TFileSystemFileSource) then
+        begin
+          mi:=TMenuItem.Create(Self);
+          mi.Caption:= rsMnuOpenInTerminal;
+          mi.Hint:= aFile.FullPath;
+          mi.OnClick:= Self.OpenInTerminalSelect;
+          Self.Items.Add(mi);
+        end;
+
         // Add "Pack here..."
         mi:=TMenuItem.Create(Self);
         mi.Caption:= rsMnuPackHere;
@@ -1022,6 +1044,16 @@ begin
       mi:=TMenuItem.Create(Self);
       mi.Action := frmMain.actRefresh;
       Self.Items.Add(mi);
+
+      // Add "Open in terminal" for the current directory
+      if frmMain.ActiveFrame.FileSource.IsClass(TFileSystemFileSource) then
+      begin
+        mi:=TMenuItem.Create(Self);
+        mi.Caption:= rsMnuOpenInTerminal;
+        mi.Hint:= frmMain.ActiveFrame.CurrentPath;
+        mi.OnClick:= Self.OpenInTerminalSelect;
+        Self.Items.Add(mi);
+      end;
 
       // Add "Sort by" submenu
       miSortBy := TMenuItem.Create(Self);

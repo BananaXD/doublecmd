@@ -2887,6 +2887,13 @@ object frmMain: TfrmMain
       Caption = 'Add to Stash'
       OnExecute = actExecute
     end
+    object actAddPathAlias: TAction
+      Tag = 14
+      Category = 'Navigation'
+      Caption = 'Add Path &Alias...'
+      Hint = 'Save the current directory as a path alias'
+      OnExecute = actExecute
+    end
     object actOpenStash: TAction
       Tag = 4
       Category = 'File Operations'

@@ -117,12 +117,16 @@ type
     procedure edtRenameOnKeyESCAPE(Sender: TObject);
     procedure edtRenameOnKeyRETURN(Sender: TObject);
     procedure edtRenameOnKeySwitch(Sender: TObject; var Key: Word; Shift: TShiftState);
+    // Renames the currently edited file and keeps the editor open on the file at AIndex
+    procedure RenameContinueAt(AIndex: PtrInt);
+    function NextSelectedFileIndex(AFrom: PtrInt): PtrInt;
     function GetNewFilename: String;
   protected
     edtRename: TEditButtonEx;
     FRenameFile: TFile;
     FRenFile:TRenameFileEditInfo;
     FRenTags:string;  // rename separators
+    FRenBatch: Boolean; // rename started with a multi-file selection: Enter moves to the next selected file
 
     FWindowProc: TWndMethod;
     // Used to register as a drag and drop source and target.
@@ -367,7 +371,20 @@ procedure TFileViewWithMainCtrl.edtRenameOnKeyRETURN(Sender: TObject);
 var
   NewFileName: String;
   OldFileName: String;
+  NextIndex: PtrInt;
 begin
+  // with a multi-file selection Enter confirms and moves on
+  // to the next selected file, keeping the editor open
+  if FRenBatch then
+  begin
+    NextIndex := NextSelectedFileIndex(GetActiveFileIndex);
+    if NextIndex >= 0 then
+    begin
+      RenameContinueAt(NextIndex);
+      Exit;
+    end;
+  end;
+
   NewFileName := self.GetNewFilename;
   OldFileName := ExtractFileName(edtRename.Hint);
 
@@ -397,30 +414,41 @@ end;
 procedure TFileViewWithMainCtrl.edtRenameOnKeySwitch(Sender: TObject;
   var Key: Word; Shift: TShiftState);
 var
-  AFile: TFile;
   Index: PtrInt;
-  OldIndex: PtrInt;
-  NewFileName: String;
-  OldFileName: String;
-  Result: TSetFilePropertyResult;
 begin
   if (Key = VK_UP) then
     Index:= GetActiveFileIndex - 1
   else begin
     Index:= GetActiveFileIndex + 1
   end;
-  if not IsFileIndexInRange(Index) then
-  begin
-    Key:= 0;
-    Exit;
-  end;
-  AFile:= FFiles[Index].FSFile.Clone;
+  Key:= 0;
+  if IsFileIndexInRange(Index) then
+    RenameContinueAt(Index);
+end;
+
+function TFileViewWithMainCtrl.NextSelectedFileIndex(AFrom: PtrInt): PtrInt;
+var
+  I: PtrInt;
+begin
+  if AFrom < 0 then AFrom := -1;
+  for I := AFrom + 1 to FFiles.Count - 1 do
+    if FFiles[I].Selected and FFiles[I].FSFile.IsNameValid then
+      Exit(I);
+  Result := -1;
+end;
+
+procedure TFileViewWithMainCtrl.RenameContinueAt(AIndex: PtrInt);
+var
+  AFile: TFile;
+  OldIndex: PtrInt;
+  NewFileName: String;
+  OldFileName: String;
+  Result: TSetFilePropertyResult;
+begin
+  AFile:= FFiles[AIndex].FSFile.Clone;
   try
     if not AFile.IsNameValid then
-    begin
-      Key:= 0;
       Exit;
-    end;
     edtRename.Tag:= 1;
     EnableWatcher(False);
     NewFileName := self.GetNewFilename;
@@ -441,7 +469,7 @@ begin
               FFiles[OldIndex].FSFile.Name:= NewFileName;
               DoFileUpdated(FFiles[OldIndex], [fpName]);
             end;
-            SetActiveFile(Index);
+            SetActiveFile(AIndex);
             edtRename.Tag:= 2;
             ShowRenameFileEdit(AFile, FRenFile.WithExt);
             edtRename.Tag:= 1;
@@ -449,14 +477,12 @@ begin
           end;
         sfprError:
           begin
-            Key:= 0;
             msgError(Format(rsMsgErrRename, [OldFileName, NewFileName]));
           end;
       end;
     except
       on e: EInvalidFileProperty do
       begin
-        Key:= 0;
         msgError(Format(rsMsgErrRename + ':' + LineEnding + '%s (%s)', [OldFileName, NewFileName, rsMsgInvalidFileName, e.Message]));
       end;
     end;
@@ -976,7 +1002,11 @@ begin
   SetDragCursor(Shift);
   FMainControlMouseDownPoint:= Classes.Point(X, Y);
   if gRenameConfirmMouse and edtRename.Visible then
+  begin
+    // a mouse click confirms without continuing through the selection
+    FRenBatch := False;
     edtRenameOnKeyRETURN(edtRename);
+  end;
   if (DragManager <> nil) and DragManager.IsDragging and (Button = mbRight) then
     Exit;
   FileIndex := GetFileIndexFromCursor(X, Y, AtFileList);
@@ -1826,6 +1856,11 @@ begin
 
   end else
   begin
+    // starting a fresh rename (not continuing to another file) with several
+    // files selected begins a batch: Enter will advance through the selection
+    if not edtRename.Visible then
+      FRenBatch := (FSelectedCount > 1);
+
     FRenameFile := aFile;
     edtRename.Hint := aFile.FullPath;
     edtRename.Text := S;

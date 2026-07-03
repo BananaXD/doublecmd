@@ -376,6 +376,11 @@ var
   gHotDirPathModifierElements: tHotDirPathModifierElements;
 
   glsDirHistory:TStringListEx;
+  {en
+     Path aliases for the quick search "go to" mode (Name=Path pairs).
+     Typing "/name" in the file panel jumps to the aliased path.
+  }
+  gPathAliases: TStringListEx;
   glsCmdLineHistory: TStringListEx;
   glsMaskHistory : TStringListEx;
   glsSyncMaskHistory : TStringListEx;
@@ -1211,11 +1216,13 @@ begin
       AddIfNotExists(['Ctrl+F4'],[],'cm_SortByExt');
       AddIfNotExists(['Ctrl+F5'],[],'cm_SortByDate');
       AddIfNotExists(['Ctrl+F6'],[],'cm_SortBySize');
+      AddIfNotExists(['Shift+E'],[],'cm_SortByDate');
       AddIfNotExists(['Ctrl+Enter'],[],'cm_AddFilenameToCmdLine');
       AddIfNotExists(['Ctrl+PgDn'],[],'cm_OpenArchive');
       AddIfNotExists(['Ctrl+PgUp'],[],'cm_ChangeDirToParent');
       AddIfNotExists(['Ctrl+Alt+Enter'],[],'cm_ShellExecute');
       AddIfNotExists(['Ctrl+Shift+A'],[],'cm_ShowTabsList');
+      AddIfNotExists(['Ctrl+Shift+Alt+A'],[],'cm_AddPathAlias');
       AddIfNotExists(['Ctrl+Shift+B'],[],'cm_FlatViewSel');
       AddIfNotExists(['Ctrl+Shift+C'],[],'cm_CopyFullNamesToClip');
       AddIfNotExists(['Ctrl+Shift+D'],[],'cm_ConfigDirHotList');
@@ -1721,6 +1728,7 @@ begin
   gDirectoryHotlist := TDirectoryHotlist.Create;
   gFavoriteTabsList := TFavoriteTabsList.Create;
   glsDirHistory := TStringListEx.Create;
+  gPathAliases := TStringListEx.Create;
   glsCmdLineHistory := TStringListEx.Create;
   glsVolumeSizeHistory := TStringListEx.Create;
   glsMaskHistory := TStringListEx.Create;
@@ -1754,6 +1762,7 @@ begin
   FreeAndNil(gColorExt);
   FreeAndNil(gFileInfoToolTip);
   FreeAndNil(glsDirHistory);
+  FreeAndNil(gPathAliases);
   FreeAndNil(glsCmdLineHistory);
   FreeAndNil(glsVolumeSizeHistory);
   FreeAndNil(gSpecialDirList);
@@ -3190,6 +3199,19 @@ begin
       gQuickFilterAutoHide := GetValue(Node, 'AutoHide', gQuickFilterAutoHide);
       gQuickFilterSaveSessionModifications := GetValue(Node, 'SaveSessionModifications', gQuickFilterSaveSessionModifications);
     end;
+    { Path aliases for quick search "go to" mode }
+    gPathAliases.Clear;
+    Node := Root.FindNode('PathAliases');
+    if Assigned(Node) then
+    begin
+      Node := Node.FirstChild;
+      while Assigned(Node) do
+      begin
+        if (Node.CompareName('Alias') = 0) and (GetAttr(Node, 'Name', EmptyStr) <> EmptyStr) then
+          gPathAliases.Add(GetAttr(Node, 'Name', EmptyStr) + '=' + GetAttr(Node, 'Path', EmptyStr));
+        Node := Node.NextSibling;
+      end;
+    end;
 
     { Miscellaneous page }
     Node := Root.FindNode('Miscellaneous');
@@ -3828,6 +3850,15 @@ begin
     Node := FindNode(Root, 'QuickFilter', True);
     SetValue(Node, 'AutoHide', gQuickFilterAutoHide);
     SetValue(Node, 'SaveSessionModifications', gQuickFilterSaveSessionModifications);
+    { Path aliases for quick search "go to" mode }
+    Node := FindNode(Root, 'PathAliases', True);
+    ClearNode(Node);
+    for iIndexContextMode := 0 to gPathAliases.Count - 1 do
+    begin
+      SubNode := AddNode(Node, 'Alias');
+      SetAttr(SubNode, 'Name', gPathAliases.Names[iIndexContextMode]);
+      SetAttr(SubNode, 'Path', gPathAliases.ValueFromIndex[iIndexContextMode]);
+    end;
 
     { Misc page }
     Node := FindNode(Root, 'Miscellaneous', True);
