@@ -138,7 +138,7 @@ end;
 
 procedure airdropAction( const Sender: id );
 begin
-  TDarwinPanelUtil.showAirDrop;
+  frmMain.Commands.cm_AirDrop([]);
 end;
 
 procedure quickLookAction( const Sender: id );
@@ -459,6 +459,11 @@ begin
   frmMain.Commands.DoOpenVirtualFileSystemList( frmMain.ActiveFrame );
 end;
 
+procedure stashAction( const Sender: id );
+begin
+  frmMain.Commands.cm_OpenStash([]);
+end;
+
 procedure terminalAction( const Sender: id );
 begin
   frmMain.Commands.cm_RunTerm([]);
@@ -560,6 +565,17 @@ const
     onAction: @networkAction;
   );
 
+  stashItemConfig: TCocoaConfigToolBarItem = (
+    identifier: 'MainForm.Stash';
+    priority: NSToolbarItemVisibilityPriorityStandard;
+    navigational: False;
+    iconName: 'square.stack';
+    title: rsStashName;
+    tips: rsStashName;
+    bordered: True;
+    onAction: @stashAction;
+  );
+
 
   showBriefItemConfig: TCocoaConfigToolBarItem = (
     identifier: 'MainForm.ShowMode.Brief';
@@ -611,7 +627,7 @@ const
     appValidates: True;
     iconName: '';
     title: rsMFSTBIShareTitle;
-    tips: '';
+    tips: rsMFSTBIShareTitle;
     bordered: True;
 
     onGetItems: @onGetSharingItems;
@@ -622,7 +638,7 @@ const
     priority: NSToolbarItemVisibilityPriorityStandard;
     navigational: False;
     appValidates: True;
-    iconName: 'airdropTemplate';
+    iconName: 'doublecmd.airdrop';
     title: rsMFSTBIAirDropTitle;
     tips: rsMFSTBIAirDropTips;
     bordered: True;
@@ -671,7 +687,7 @@ const
      priority: NSToolbarItemVisibilityPriorityStandard;
      navigational: False;
      appValidates: True;
-     iconName: 'finderTemplate';
+     iconName: 'doublecmd.finder';
      title: rsMFSTBIFinderRevealTitle;
      tips: rsMFSTBIFinderRevealTips;
      bordered: True;
@@ -817,6 +833,7 @@ const
 
         'MainForm.iCloud',
         'MainForm.network',
+        'MainForm.Stash',
         'NSToolbarFlexibleSpaceItem',
 
         'MainForm.ShowMode',
@@ -845,6 +862,7 @@ const
         'MainForm.GoBackward',
         'MainForm.GoForward',
 
+        'MainForm.Stash',
         'MainForm.iCloud',
         'MainForm.network',
         'MainForm.ShowMode',
@@ -874,6 +892,10 @@ procedure addMainFormShortCutTips;
 begin
   addShortCutTipsToItemConfig( 'Main', 'cm_ViewHistoryPrev', goBackwardItemConfig );
   addShortCutTipsToItemConfig( 'Main', 'cm_ViewHistoryNext', goForwardItemConfig );
+  addShortCutTipsToItemConfig( 'Main', 'cm_OpenVirtualFileSystemList', networkItemConfig );
+  addShortCutTipsToItemConfig( 'Main', 'cm_OpenStash', stashItemConfig );
+  addShortCutTipsToItemConfig( 'Main', 'cm_Share', shareItemConfig );
+  addShortCutTipsToItemConfig( 'Main', 'cm_AirDrop', airDropItemConfig );
 end;
 
 procedure joinPrivilegeTips;
@@ -883,8 +905,26 @@ begin
                            + rsMFSTBIPrivilegeTips3;
 end;
 
+
+procedure loadVectorImageWithName( const filename: String; const name: String );
+var
+  path: String;
+  bitmap: TBitmap;
+  image: NSImage;
+begin
+  path:= mbExpandFileName( '$COMMANDER_PATH/pixmaps/macOS/' + filename );
+  bitmap:= TScalableVectorGraphics.CreateBitmap( path, 192, 192 );
+  image:= TDarwinImageUtil.toNSImage( bitmap );
+  image.setTemplate( True );
+  image.setName( NSSTR(name) );
+  bitmap.Free;
+end;
+
 procedure doInitMainFormConfig;
 begin
+  loadVectorImageWithName( 'airdrop.svg', 'doublecmd.airdrop' );
+  loadVectorImageWithName( 'finder.svg', 'doublecmd.finder' );
+
   addMainFormShortCutTips;
   joinPrivilegeTips;
 
@@ -919,6 +959,7 @@ begin
     TCocoaToolBarUtils.toClass(syncItemConfig),
     TCocoaToolBarUtils.toClass(editItemConfig),
 
+    TCocoaToolBarUtils.toClass(stashItemConfig),
     TCocoaToolBarUtils.toClass(iCloudItemConfig),
     TCocoaToolBarUtils.toClass(networkItemConfig)
   ];

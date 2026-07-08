@@ -1105,6 +1105,7 @@ begin
         end;
     end;
     ADisplayFile := TDisplayFile.Create(AFile);
+    ADisplayFile.DisplayName:= FileSource.GetDisplayFileName(AFile);
     FHashedFiles.Add(ADisplayFile, nil);
     FHashedNames.Add(AFileKey, ADisplayFile);
     InsertFile(ADisplayFile, FAllDisplayFiles, NewFilesPosition);
@@ -1160,6 +1161,7 @@ begin
       ADisplayFile.FSFile.Name := NewFileName;
       FHashedNames.Remove(OldFileKey);
       FHashedNames.Add(NewFileKey, ADisplayFile);
+      ADisplayFile.DisplayName:= FileSource.GetDisplayFileName(ADisplayFile.FSFile);
       ADisplayFile.Busy:= [];
       ADisplayFile.Icon:= nil;
       ADisplayFile.IconID := -1;
@@ -1316,6 +1318,7 @@ begin
           Exit;
         end;
     end;
+    ADisplayFile.DisplayName:= FileSource.GetDisplayFileName(AFile);
     ADisplayFile.TextColor := clNone;
     {$IFDEF DARWIN}
     // on macOS, Icon of file maybe changed after updated.

@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: Double Commander 1.1.0 alpha\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2022-11-15 11:15+0300\n"
-"PO-Revision-Date: 2026-03-21 20:59+0200\n"
+"PO-Revision-Date: 2026-06-26 13:02+0300\n"
 "Last-Translator: Anastasios Kazakis <anastasios.kazakis@gmail.com>\n"
 "Language-Team: Anastasios Kazakis <anastasios.kazakis@tutanota.com>\n"
 "Language: el_GR\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Native-Language: ελληνικά\n"
-"X-Generator: Poedit 3.8\n"
+"X-Generator: Poedit 3.9\n"
 "X-Language: el_GR\n"
 "X-Source-Language: el\n"
 "X-Poedit-SourceCharset: ISO-8859-7\n"
@@ -1100,7 +1100,7 @@ msgstr "Αποθήκευση ως"
 
 #: tfrmeditor.actwordwrap.caption
 msgid "&Word wrap"
-msgstr ""
+msgstr "Αναδίπλωση κειμένου"
 
 #: tfrmeditor.actzoomin.caption
 msgctxt "tfrmeditor.actzoomin.caption"
@@ -1155,7 +1155,6 @@ msgid "End Of Line"
 msgstr "Τέλος Γραμμής"
 
 #: tfrmeditor.miview.caption
-#, fuzzy
 msgctxt "tfrmeditor.miview.caption"
 msgid "&View"
 msgstr "Προβολή"
@@ -1638,7 +1637,7 @@ msgstr "Βοήθεια"
 
 #: tfrmfinddlg.btndrives.caption
 msgid "Drives"
-msgstr ""
+msgstr "Οδηγοί"
 
 #: tfrmfinddlg.btnsavetemplate.caption
 msgctxt "TFRMFINDDLG.BTNSAVETEMPLATE.CAPTION"
@@ -2093,7 +2092,17 @@ msgstr "Προσθήκη Προσθέτου"
 
 #: tfrmmain.actaddtostash.caption
 msgid "Add to Stash"
-msgstr ""
+msgstr "Προσθήκη στο Απόθεμα"
+
+#: tfrmmain.actairdrop.caption
+msgctxt "tfrmmain.actairdrop.caption"
+msgid "AirDrop"
+msgstr "AirDrop"
+
+#: tfrmmain.actairdrop.hint
+msgctxt "tfrmmain.actairdrop.hint"
+msgid "AirDrop"
+msgstr "AirDrop"
 
 #: tfrmmain.actbenchmark.caption
 msgid "&Benchmark"
@@ -2360,7 +2369,7 @@ msgstr "Επεξεργασία πεδίου διαδρομής πάνω από �
 
 #: tfrmmain.actemptystash.caption
 msgid "Empty Stash"
-msgstr ""
+msgstr "Άδειασμα Αποθέματος"
 
 #: tfrmmain.actexchange.caption
 msgid "Swap &Panels"
@@ -2654,7 +2663,7 @@ msgstr "Άνοιγμα Οδηγού με βάση το Ευρετήριο"
 
 #: tfrmmain.actopenstash.caption
 msgid "Open Stash"
-msgstr ""
+msgstr "Άνοιγμα Αποθέματος"
 
 #: tfrmmain.actopenvirtualfilesystemlist.caption
 msgctxt "TFRMMAIN.ACTOPENVIRTUALFILESYSTEMLIST.CAPTION"
@@ -2712,7 +2721,7 @@ msgstr "Επαναφόρτωση της τελευταίας φορτωμένη�
 
 #: tfrmmain.actremovefromstash.caption
 msgid "Remove Stash Items"
-msgstr ""
+msgstr "Αφαίρεση Αντικειμένων Αποθέματος"
 
 #: tfrmmain.actrename.caption
 msgctxt "tfrmmain.actrename.caption"
@@ -2843,7 +2852,7 @@ msgstr "Αλλαγή Ιδιοτήτων..."
 
 #: tfrmmain.actsetsortmode.caption
 msgid "Set Sort Mode"
-msgstr ""
+msgstr "Ορισμός Λειτουργίας Ταξινόμησης"
 
 #: tfrmmain.actsettaboptiondirsinnewtab.caption
 msgid "Locked with Directories Opened in New &Tabs"
@@ -2861,6 +2870,11 @@ msgstr "Κλειδωμένο"
 msgctxt "TFRMMAIN.ACTSETTABOPTIONPATHRESETS.CAPTION"
 msgid "Locked with &Directory Changes Allowed"
 msgstr "Κλειδωμένο με Επιτρεπόμενες τις Αλλαγές Καταλόγων"
+
+#: tfrmmain.actshare.caption
+msgctxt "tfrmmain.actshare.caption"
+msgid "Share..."
+msgstr "Διαμοιρασμός..."
 
 #: tfrmmain.actshellexecute.caption
 msgctxt "TFRMMAIN.ACTSHELLEXECUTE.CAPTION"
@@ -4430,7 +4444,6 @@ msgid "Right:"
 msgstr "Δεξιά:"
 
 #: tfrmoptionscolors.lblselection.caption
-#, fuzzy
 msgctxt "tfrmoptionscolors.lblselection.caption"
 msgid "Selection:"
 msgstr "Επιλογή:"
@@ -6539,7 +6552,7 @@ msgstr "Προκαθορισμένη τιμή ιδιότητας μάσκας π
 #: tfrmoptionsfilesviewscomplement.lblextralinespan.caption
 msgctxt "tfrmoptionsfilesviewscomplement.lblextralinespan.caption"
 msgid "Extra line span:"
-msgstr ""
+msgstr "Εύρος έξτρα γραμμής:"
 
 #: tfrmoptionsfiletypescolors.btnaddcategory.caption
 msgctxt "TFRMOPTIONSFILETYPESCOLORS.BTNADDCATEGORY.CAPTION"
@@ -6828,6 +6841,8 @@ msgid ""
 "Force F1, F2, etc. to be treated as function keys\n"
 "ignore the settings in System Settings > Keyboard"
 msgstr ""
+"Επιβολή των F1, F2, κ.λπ. να χρησιμοποιούνται σαν πλήκτρα λειτουργιών\n"
+"αγνόηση των ρυθμίσεων στις Ρυθμίσεις Συστήματος > Πληκτρολόγιο"
 
 #: tfrmoptionskeyboard.cbfnkey.hint
 msgid ""
@@ -6839,6 +6854,13 @@ msgid ""
 "Each time a new version of DC is installed, you must first\n"
 "remove DC from the list and then add it back in."
 msgstr ""
+"Αυτό το χαρακτηριστικό απαιτεί επιπλέον άδειες συστήματος.\n"
+"\n"
+"Ενεργοποιώντας το θα σας οδηγήσει αυτόματα στο\n"
+"Ρυθμίσεις Συστήματος > Ασφάλεια & Ιδιωτικότητα > Πίνακας Προσβασιμότητας.\n"
+"\n"
+"Κάθε φορά που εγκαθίσταται μία νέα έκδοση του DC, πρέπει πρώτα\n"
+"να αφαιρείται ο DC από τη λίστα και μετά πάλι να προστίθεται σε αυτή."
 
 #: tfrmoptionskeyboard.cblynxlike.caption
 msgid "Le&ft, Right arrows change directory (Lynx-like movement)"
@@ -10847,7 +10869,7 @@ msgstr "Εύρεση αρχείων"
 
 #: ulng.rsfindselectdrives
 msgid "Select drives"
-msgstr ""
+msgstr "Επιλογή Οδηγών"
 
 #: ulng.rsfindtimeofscan
 msgid "Time of scan: "
@@ -11203,10 +11225,6 @@ msgstr "Δώστε \"Πρόσβαση σε όλο το Δίσκο\" άδεια �
 msgid "Remove \"%s\""
 msgstr "Αφαίρεση \"%s\""
 
-#: ulng.rsmenumacosshare
-msgid "Share..."
-msgstr "Διαμοιρασμός..."
-
 #: ulng.rsmfstbiairdroptips
 msgctxt "ulng.rsmfstbiairdroptips"
 msgid "AirDrop"
@@ -11335,11 +11353,11 @@ msgstr "Σαν διαχειριστής αρχείων, ο Double Commander απ
 
 #: ulng.rsmfstbiprivilegetips2
 msgid "If you can see me, it means DC has not been authorized yet. DC will hide me once it is complete."
-msgstr ""
+msgstr "Αν με βλέπετε, σημαίνει ότι ο DC δεν έχει αδειοδοτηθεί ακόμη. Ο DC θα με κρύψει μόλις αυτό ολοκληρωθεί."
 
 #: ulng.rsmfstbiprivilegetips3
 msgid "You must re-authorize every time you install a new version. In this case you need to remove DC from the list first and then add DC back again. Because the new version has different fingerprints, simply enabling the checkboxes will not work."
-msgstr ""
+msgstr "Πρέπει να ανανεώνετε τις άδειες κάθε φορά που εγκαταστείτε μία νέα έκδοση. Σε αυτή την περίπτωση πρέπει πρώτα να αφαιρέσετε τον DC από την λίστα και μετά να προσθέσετε τον DC ξανά. Επειδή η νέα έκδοση έχει διαφορετικά δακτυλικά αποτυπώματα, απλή επιλογή πλαισίων ελέγχου δεν είναι αρκετή."
 
 #: ulng.rsmfstbiprivilegetitle
 msgid "Privilege"
@@ -14340,7 +14358,7 @@ msgstr "Επιλογή καταλόγου:"
 
 #: ulng.rsstashname
 msgid "Stash"
-msgstr ""
+msgstr "Απόθεμα"
 
 #: ulng.rsstrpreviewjustpreview
 msgid "Just preview"

@@ -2089,6 +2089,16 @@ msgstr "Добавить плагин"
 msgid "Add to Stash"
 msgstr "Добавить во временную панель"
 
+#: tfrmmain.actairdrop.caption
+msgctxt "tfrmmain.actairdrop.caption"
+msgid "AirDrop"
+msgstr "AirDrop"
+
+#: tfrmmain.actairdrop.hint
+msgctxt "tfrmmain.actairdrop.hint"
+msgid "AirDrop"
+msgstr "AirDrop"
+
 #: tfrmmain.actbenchmark.caption
 msgid "&Benchmark"
 msgstr "&Тест производительности"
@@ -2855,6 +2865,11 @@ msgstr "&Заблокировать вкладку"
 msgctxt "TFRMMAIN.ACTSETTABOPTIONPATHRESETS.CAPTION"
 msgid "Locked with &Directory Changes Allowed"
 msgstr "Заблокировать с возможностью &смены каталога"
+
+#: tfrmmain.actshare.caption
+msgctxt "tfrmmain.actshare.caption"
+msgid "Share..."
+msgstr "Поделиться..."
 
 #: tfrmmain.actshellexecute.caption
 msgctxt "tfrmmain.actshellexecute.caption"
@@ -11240,10 +11255,6 @@ msgstr "Предоставьте разрешение \"Полный досту�
 #, object-pascal-format
 msgid "Remove \"%s\""
 msgstr "Удалить \"%s\""
-
-#: ulng.rsmenumacosshare
-msgid "Share..."
-msgstr "Поделиться..."
 
 #: ulng.rsmfstbiairdroptips
 msgctxt "ulng.rsmfstbiairdroptips"

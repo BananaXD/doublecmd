@@ -11,8 +11,7 @@ uses
   uFileSource,
   uFile,
   uArchiveCopyOperation,
-  uMultiArchiveFileSource,
-  uTarWriter;
+  uMultiArchiveFileSource;
 
 type
 
@@ -22,7 +21,6 @@ type
 
   private
     FMultiArchiveFileSource: IMultiArchiveFileSource;
-    FTarWriter: TTarWriter;
     FPassword: String;
     FVolumeSize: String;
     FCustomParams: String;
@@ -34,13 +32,11 @@ type
     procedure DeleteFiles(const BasePath: String; aFiles: TFiles);
 
     function doMultiPackFiles(const files: TFiles): Integer;
-    function doTarFiles(const files: TFiles): Integer;
   protected
     FExProcess: TExProcess;
     FTempFile: String;
     FErrorLevel: LongInt;
     FCommandLine: String;
-    function Tar: Boolean;
     procedure OnReadLn(str: string);
     procedure OperationProgressHandler;
     procedure OnQueryString(str: string);
@@ -225,10 +221,13 @@ end;
 procedure TMultiArchiveCopyInOperation.MainExecute;
 
   procedure tarAndPack;
+  var
+    success: Boolean;
   begin
     // Put to TAR archive if needed
     if FTarBefore then begin
-      if NOT self.Tar() then
+      self.Tar( FMultiArchiveFileSource, success );
+      if NOT success then
         Exit;
       UpdateProgress( SourceFiles[0].FullPath, FMultiArchiveFileSource.ArchiveFileName, 0);
     end;
@@ -361,78 +360,6 @@ begin
       DeleteDirectory(BasePath + aFile.FullPath, False)
     else
       mbDeleteFile(BasePath + aFile.FullPath);
-  end;
-end;
-
-function TMultiArchiveCopyInOperation.doTarFiles(const files: TFiles): Integer;
-var
-  success: Boolean;
-  currentFullFiles: TFiles = nil;
-  uselessTotalFiles: Int64;
-  uselessTotalBytes: Int64;
-begin
-  Result:= -1;
-  try
-    if Assigned(FFullFilesTree) then begin
-      success:= FTarWriter.TarFiles(FFullFilesTree, FStatistics);
-    end else begin
-      uFileSystemUtil.FillAndCount(
-        files, False, False,
-        currentFullFiles,
-        uselessTotalFiles,
-        uselessTotalBytes);     // gets full list of files (recursive)
-      success:= FTarWriter.TarFiles(currentFullFiles, FStatistics);
-    end;
-    if success then
-      Result:= 0;
-  finally
-    currentFullFiles.Free;
-  end;
-end;
-
-function TMultiArchiveCopyInOperation.Tar: Boolean;
-
-  function tarFiles: Boolean;
-  var
-    tarBeginResult: Boolean;
-    resultCode: Integer;
-  begin
-    Result:= False;
-    tarBeginResult:= FTarWriter.TarBegin( FStatistics );
-    if tarBeginResult then begin
-      resultCode:= -1;
-      try
-        resultCode:= ProcessFilesWithMultiRootPath( SourceFiles, @self.doTarFiles );
-      finally
-        Result:= FTarWriter.TarEnd( FStatistics, resultCode=0 );
-      end;
-    end;
-  end;
-
-begin
-  Result:= False;
-  FTarFileName:= RemoveFileExt(FMultiArchiveFileSource.ArchiveFileName);
-  FTarWriter:= TTarWriter.Create(FTarFileName,
-                                @AskQuestion,
-                                @RaiseAbortOperation,
-                                @CheckOperationState,
-                                @UpdateStatistics
-                               );
-
-  try
-    if tarFiles() then
-    begin
-      // Fill file list with tar archive file
-      SourceFiles.Clear;
-      SourceFiles.Path:= ExtractFilePath(FTarFileName);
-      SourceFiles.Add(TFileSystemFileSource.CreateFileFromFile(FTarFileName));
-      // SourceFiles changed, FFullFilesTree becomes meaningless
-      FreeAndNil(FFullFilesTree);
-
-      Result:= True;
-    end;
-  finally
-    FreeAndNil(FTarWriter);
   end;
 end;
 

@@ -2062,6 +2062,16 @@ msgstr "Plugin hinzufügen"
 msgid "Add to Stash"
 msgstr ""
 
+#: tfrmmain.actairdrop.caption
+msgctxt "tfrmmain.actairdrop.caption"
+msgid "AirDrop"
+msgstr "AirDrop (SnapDrop, PairDrop …)"
+
+#: tfrmmain.actairdrop.hint
+msgctxt "tfrmmain.actairdrop.hint"
+msgid "AirDrop"
+msgstr "AirDrop (SnapDrop, PairDrop …)"
+
 #: tfrmmain.actbenchmark.caption
 msgid "&Benchmark"
 msgstr "Benchmark"
@@ -2816,6 +2826,11 @@ msgstr "&Gesperrt, kein Verzeichniswechsel möglich"
 #: tfrmmain.actsettaboptionpathresets.caption
 msgid "Locked with &Directory Changes Allowed"
 msgstr "Gesperrt, &Verzeichniswechsel möglich"
+
+#: tfrmmain.actshare.caption
+msgctxt "tfrmmain.actshare.caption"
+msgid "Share..."
+msgstr "Teilen …"
 
 #: tfrmmain.actshellexecute.caption
 msgctxt "TFRMMAIN.ACTSHELLEXECUTE.CAPTION"
@@ -10981,10 +10996,6 @@ msgstr "Gewähren Sie »Volle Festplattenzugriffsrechte« zur Unterstützung von
 #, object-pascal-format
 msgid "Remove \"%s\""
 msgstr "\"%s\" entfernen"
-
-#: ulng.rsmenumacosshare
-msgid "Share..."
-msgstr "Teilen …"
 
 #: ulng.rsmfstbiairdroptips
 msgctxt "ulng.rsmfstbiairdroptips"

@@ -2052,6 +2052,16 @@ msgstr "플러그인 추가"
 msgid "Add to Stash"
 msgstr "보관함에 추가"
 
+#: tfrmmain.actairdrop.caption
+msgctxt "tfrmmain.actairdrop.caption"
+msgid "AirDrop"
+msgstr "AirDrop"
+
+#: tfrmmain.actairdrop.hint
+msgctxt "tfrmmain.actairdrop.hint"
+msgid "AirDrop"
+msgstr "AirDrop"
+
 #: tfrmmain.actbenchmark.caption
 msgid "&Benchmark"
 msgstr "벤치마크(&B)"
@@ -2806,6 +2816,11 @@ msgstr "잠김(&L)"
 #: tfrmmain.actsettaboptionpathresets.caption
 msgid "Locked with &Directory Changes Allowed"
 msgstr "디렉터리 변경 허용으로 잠김(&D)"
+
+#: tfrmmain.actshare.caption
+msgctxt "tfrmmain.actshare.caption"
+msgid "Share..."
+msgstr "공유..."
 
 #: tfrmmain.actshellexecute.caption
 msgctxt "TFRMMAIN.ACTSHELLEXECUTE.CAPTION"
@@ -10982,10 +10997,6 @@ msgstr "파인더 태그를 지원하기 위한 \"전체 디스크 액세스\" �
 #, object-pascal-format
 msgid "Remove \"%s\""
 msgstr "\"%s\" 제거"
-
-#: ulng.rsmenumacosshare
-msgid "Share..."
-msgstr "공유..."
 
 #: ulng.rsmfstbiairdroptips
 msgctxt "ulng.rsmfstbiairdroptips"

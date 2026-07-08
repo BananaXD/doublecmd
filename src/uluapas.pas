@@ -42,7 +42,55 @@ uses
   uFilePanelSelect, uMasks, LazFileUtils, Character, UnicodeData,
   DCBasicTypes, Variants, uFile, uFileProperty, uFileSource,
   uFileSourceProperty, uFileSourceUtil, uFileSystemFileSource,
+  uStashFilesBackend,
   uDefaultFilePropertyFormatter, DCDateTimeUtils, uShellExecute;
+
+function luaTableToStringArray(L: Plua_State; index: Integer): TStringArray;
+var
+  tableLength: Integer;
+  i: Integer;
+  currentPChar: PChar;
+  currentCharLen: size_t;
+begin
+  Result:= nil;
+
+  if NOT lua_istable(L, index) then
+    Exit;
+  tableLength:= lua_objlen(L, index);
+  if tableLength = 0 then
+    Exit;
+  SetLength(Result, tableLength);
+
+  for i := 1 to tableLength do begin
+    lua_rawgeti(L, index, i);
+
+    currentPChar:= lua_tolstring(L, -1, @currentCharLen);
+    if currentPChar <> nil then begin
+      SetString(Result[i-1], currentPChar, currentCharLen);
+    end else begin
+      Result[i-1]:= '';
+    end;
+
+    lua_pop(L, 1);
+  end;
+end;
+
+procedure luaStringArrayToTable(L: Plua_State; const stringArray: TStringArray);
+var
+  i: Integer;
+  arrayLength: Integer;
+begin
+  arrayLength := Length(stringArray);
+  lua_createtable(L, arrayLength, 0);
+
+  if arrayLength = 0 then
+    Exit;
+
+  for i := 0 to arrayLength - 1 do begin
+    lua_pushlstring(L, PChar(stringArray[i]), Length(stringArray[i]));
+    lua_rawseti(L, -2, i + 1);
+  end;
+end;
 
 procedure luaPushSearchRec(L : Plua_State; Rec: PSearchRecEx);
 begin
@@ -517,6 +565,65 @@ begin
   Clipboard.SetAsHtml(luaL_checkstring(L, 1));
 end;
 
+function luaStashGetAsText(L : Plua_State) : Integer; cdecl;
+var
+  paths: TStringArray;
+  path: String;
+  stringBuilder: TAnsiStringBuilder;
+begin
+  Result:= 1;
+  stringBuilder:= TAnsiStringBuilder.Create;
+  paths:= stashFilesBackend.toStringArray;
+  for path in paths do begin
+    stringBuilder.Append( path );
+    stringBuilder.Append( #10 );
+  end;
+  lua_pushstring(L, stringBuilder.ToString);
+  stringBuilder.Free;
+end;
+
+function luaStashGetAsTable(L : Plua_State) : Integer; cdecl;
+begin
+  Result:= 1;
+  luaStringArrayToTable(L, stashFilesBackend.toStringArray);
+end;
+
+function luaStashAddAsText(L : Plua_State) : Integer; cdecl;
+var
+  paths: TStringArray;
+begin
+  Result:= 0;
+  paths:= lua_tostring(L,1).split( #10 );
+  stashFilesBackend.addFromStringArray(paths);
+end;
+
+function luaStashAddAsTable(L : Plua_State) : Integer; cdecl;
+var
+  paths: TStringArray;
+begin
+  Result:= 0;
+  paths:= luaTableToStringArray(L, 1);
+  stashFilesBackend.addFromStringArray(paths);
+end;
+
+function luaStashSetAsText(L : Plua_State) : Integer; cdecl;
+var
+  paths: TStringArray;
+begin
+  Result:= 0;
+  paths:= lua_tostring(L,1).split( #10 );
+  stashFilesBackend.setFromStringArray( paths );
+end;
+
+function luaStashSetAsTable(L : Plua_State) : Integer; cdecl;
+var
+  paths: TStringArray;
+begin
+  Result:= 0;
+  paths:= luaTableToStringArray(L, 1);
+  stashFilesBackend.setFromStringArray(paths);
+end;
+
 function luaMessageBox(L : Plua_State) : Integer; cdecl;
 var
   flags: Integer;
@@ -922,6 +1029,15 @@ begin
     luaP_register(L, 'SetAsText', @luaClipbrdSetText);
     luaP_register(L, 'SetAsHtml', @luaClipbrdSetHtml);
   lua_setglobal(L, 'Clipbrd');
+
+  lua_newtable(L);
+    luaP_register(L, 'GetAsText', @luaStashGetAsText);
+    luaP_register(L, 'GetAsTable', @luaStashGetAsTable);
+    luaP_register(L, 'AddAsText', @luaStashAddAsText);
+    luaP_register(L, 'SetAsText', @luaStashSetAsText);
+    luaP_register(L, 'AddAsTable', @luaStashAddAsTable);
+    luaP_register(L, 'SetAsTable', @luaStashSetAsTable);
+  lua_setglobal(L, 'Stash');
 
   lua_newtable(L);
     luaP_register(L, 'MessageBox', @luaMessageBox);
