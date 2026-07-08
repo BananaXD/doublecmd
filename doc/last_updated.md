@@ -1,4 +1,4 @@
-# Last Updated — 2026-07-03
+# Last Updated — 2026-07-08
 
 Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspired-usability.md`.
 
@@ -18,7 +18,8 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
 2. **Path aliases** — `gPathAliases` in `src/uglobs.pas`, persisted in `doublecmd.xml`
    under `PathAliases/Alias` nodes (Name/Path attributes).
    - `/name` ⏎ jumps to alias target, `/name/sub` appends the rest
-   - `/name=/some/path` ⏎ defines an alias, `/name=` ⏎ deletes it
+   - `/name=/some/path` ⏎ defines an alias, `/name=` ⏎ sets it to the active
+     panel's current dir (changed 2026-07-08, was delete), `/name=-` ⏎ deletes it
    - Unknown alias = treated as a literal path, so `/home` still works.
 
 3. **Batch inline rename** — `src/fileviews/ufileviewwithmainctrl.pas`
