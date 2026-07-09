@@ -4371,7 +4371,13 @@ begin
   for Param in Params do
   begin
     if GetParamValue(Param, 'splitpct', SplitPct) then
-      Split := StrToIntDef(SplitPct, Split);
+    begin
+      // a signed value ("+5"/"-5") moves the splitter relative to its position
+      if (SplitPct <> EmptyStr) and (SplitPct[1] in ['+', '-']) then
+        Split := EnsureRange(Round(frmMain.MainSplitterPos) + StrToIntDef(SplitPct, 0), 0, 100)
+      else
+        Split := StrToIntDef(SplitPct, Split);
+    end;
   end;
   DoPanelsSplitterPerPos(Split);
 end;

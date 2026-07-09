@@ -173,7 +173,11 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 72;
+  hkVersion = 73;
+  // 73 - In "Main" context, "Ctrl+U" rebound from "cm_Exchange" to "cm_Copy".
+  //      In "Files Panel" context, "Ctrl+Left"/"Ctrl+Right" rebound from
+  //      "cm_TransferLeft"/"cm_TransferRight" to "cm_PanelsSplitterPerPos"
+  //      with "splitpct=-5"/"splitpct=+5" (move the panel splitter).
   // 72 - In "Viewer" and "Editor" context, for macOS, added:
   //      "Cmd+G" for Find Next
   //      "Cmd+L" for Goto Line
@@ -1193,6 +1197,13 @@ begin
         end;
       end;
 
+      if HotMan.Version < 73 then
+      begin
+        HMHotKey:= Find(['Ctrl+U']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_Exchange') then
+          Remove(HMHotKey);
+      end;
+
       AddIfNotExists(['Alt+F8','','',
                       'Ctrl+Down','',''], 'cm_ShowCmdLineHistory');
       AddIfNotExists(['Ctrl+B'],[],'cm_FlatView');
@@ -1208,7 +1219,7 @@ begin
       AddIfNotExists(['Ctrl+S'],[],'cm_QuickSearch');
       AddIfNotExists(['Ctrl+R'],[],'cm_Refresh');
       AddIfNotExists(['Ctrl+T'],[],'cm_NewTab');
-      AddIfNotExists(['Ctrl+U'],[],'cm_Exchange');
+      AddIfNotExists(['Ctrl+U'],[],'cm_Copy');
       AddIfNotExists(['Ctrl+W'],[],'cm_CloseTab');
       AddIfNotExists(['Ctrl+F1'],[],'cm_BriefView');
       AddIfNotExists(['Ctrl+F2'],[],'cm_ColumnsView');
@@ -1316,8 +1327,18 @@ begin
       AddIfNotExists(['Num*'],[],'cm_MarkInvert');
       AddIfNotExists(['Ctrl+Z'],[],'cm_EditComment');
       AddIfNotExists(['Ctrl+Shift+Home'],[],'cm_ChangeDirToHome');
-      AddIfNotExists(['Ctrl+Left'],[],'cm_TransferLeft');
-      AddIfNotExists(['Ctrl+Right'],[],'cm_TransferRight');
+      if HotMan.Version < 73 then
+      begin
+        HMHotKey:= Find(['Ctrl+Left']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_TransferLeft') then
+          Remove(HMHotKey);
+        HMHotKey:= Find(['Ctrl+Right']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_TransferRight') then
+          Remove(HMHotKey);
+      end;
+
+      AddIfNotExists(['Ctrl+Left','','splitpct=-5',''], 'cm_PanelsSplitterPerPos');
+      AddIfNotExists(['Ctrl+Right','','splitpct=+5',''], 'cm_PanelsSplitterPerPos');
 
       if HotMan.Version < 46 then
       begin

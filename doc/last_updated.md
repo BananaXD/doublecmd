@@ -1,4 +1,4 @@
-# Last Updated — 2026-07-08
+# Last Updated — 2026-07-10
 
 Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspired-usability.md`.
 
@@ -74,6 +74,18 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
       `\path` and no-alias `/path` resolve against the active panel's drive (fallback `C:`),
       UNC `\\server` left alone; `C:`/`C:\path` (any drive letter + colon) enters go-to mode
       and navigates literally; `/alias\sub` splits on both separators (`PATH_SEPARATORS`).
+
+11. **Ctrl+U → copy to other panel** (2026-07-10) — default hotkey in `src/uglobs.pas`,
+    "Main" context: `Ctrl+U` now runs `cm_Copy` (was `cm_Exchange`, which is now unbound).
+    hkVersion bumped to 73 with a migration that rebinds existing profiles.
+
+12. **Ctrl+Left / Ctrl+Right nudge the panel splitter** (2026-07-10)
+    - `cm_PanelsSplitterPerPos` (`src/umaincommands.pas`) now accepts a signed
+      `splitpct` (`+5`/`-5`) meaning relative to the current position, clamped 0–100;
+      unsigned values stay absolute.
+    - Default hotkeys in "Files Panel" context: `Ctrl+Left` = `splitpct=-5`,
+      `Ctrl+Right` = `splitpct=+5` (were `cm_TransferLeft`/`cm_TransferRight`,
+      now unbound; hkVersion 73 migration rebinds existing profiles).
 
 Build note: if FPC dies with a random internal `EListError` in unmodified units,
 run `./clean.sh && ./build.sh components` then rebuild — stale PPU state.
