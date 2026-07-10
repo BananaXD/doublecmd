@@ -17,6 +17,10 @@ export lazbuild=$(which lazbuild)
 if [ $2 ]
   then export lcl=$2
 fi
+# Default to qt5 (the widgetset used on this machine) if none specified
+if [ -z "$lcl" ]
+  then export lcl=qt5
+fi
 if [ $lcl ] && [ $CPU_TARGET ]
   then export DC_ARCH=$(echo "--widgetset=$lcl")" "$(echo "--cpu=$CPU_TARGET")
 elif [ $lcl ]
