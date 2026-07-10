@@ -173,7 +173,9 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 73;
+  hkVersion = 74;
+  // 74 - Repair 73: "Ctrl+Right" was never added (both splitter shortcuts must
+  //      be registered in a single AddIfNotExists call).
   // 73 - In "Main" context, "Ctrl+U" rebound from "cm_Exchange" to "cm_Copy".
   //      In "Files Panel" context, "Ctrl+Left"/"Ctrl+Right" rebound from
   //      "cm_TransferLeft"/"cm_TransferRight" to "cm_PanelsSplitterPerPos"
@@ -1337,8 +1339,17 @@ begin
           Remove(HMHotKey);
       end;
 
-      AddIfNotExists(['Ctrl+Left','','splitpct=-5',''], 'cm_PanelsSplitterPerPos');
-      AddIfNotExists(['Ctrl+Right','','splitpct=+5',''], 'cm_PanelsSplitterPerPos');
+      if HotMan.Version < 74 then
+      begin
+        // 73 added Ctrl+Left/Ctrl+Right via two AddIfNotExists calls; the second
+        // was skipped (command already bound) — remove so both are re-added below
+        HMHotKey:= Find(['Ctrl+Left']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_PanelsSplitterPerPos') then
+          Remove(HMHotKey);
+      end;
+
+      AddIfNotExists(['Ctrl+Left','','splitpct=-5','',
+                      'Ctrl+Right','','splitpct=+5',''], 'cm_PanelsSplitterPerPos');
 
       if HotMan.Version < 46 then
       begin
