@@ -1330,7 +1330,8 @@ var
 begin
   S := Trim(edtSearch.Text);
 
-  // "/name=path" defines an alias, "/name=" removes it
+  // "/name=path" defines an alias, "/name=" points it at the active panel's
+  // current directory, "/name=-" removes it
   if (Length(S) > 1) and (S[1] = PATH_MODE_PREFIX) then
   begin
     P := Pos('=', S);
@@ -1338,14 +1339,20 @@ begin
     begin
       AName := Copy(S, 2, P - 2);
       AValue := Trim(Copy(S, P + 1, MaxInt));
-      if AValue = EmptyStr then
+      if AValue = '-' then
       begin
         P := gPathAliases.IndexOfName(AName);
         if P >= 0 then
           gPathAliases.Delete(P);
       end
       else
-        gPathAliases.Values[AName] := ExcludeTrailingPathDelimiter(AValue);
+      begin
+        if AValue = EmptyStr then
+          AValue := frmMain.ActiveFrame.CurrentPath;
+        AValue := ExcludeTrailingPathDelimiter(AValue);
+        if AValue <> EmptyStr then
+          gPathAliases.Values[AName] := AValue;
+      end;
       CancelFilter;
       Exit;
     end;
