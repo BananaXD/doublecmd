@@ -1331,11 +1331,12 @@ begin
   S := Trim(edtSearch.Text);
 
   // "/name=path" defines an alias, "/name=" points it at the active panel's
-  // current directory, "/name=-" removes it
+  // current directory, "/=" names the alias after the current directory itself,
+  // "/name=-" removes it
   if (Length(S) > 1) and (S[1] = PATH_MODE_PREFIX) then
   begin
     P := Pos('=', S);
-    if P > 2 then
+    if P >= 2 then
     begin
       AName := Copy(S, 2, P - 2);
       AValue := Trim(Copy(S, P + 1, MaxInt));
@@ -1350,7 +1351,9 @@ begin
         if AValue = EmptyStr then
           AValue := frmMain.ActiveFrame.CurrentPath;
         AValue := ExcludeTrailingPathDelimiter(AValue);
-        if AValue <> EmptyStr then
+        if AName = EmptyStr then
+          AName := ExtractFileName(AValue);
+        if (AName <> EmptyStr) and (AValue <> EmptyStr) then
           gPathAliases.Values[AName] := AValue;
       end;
       CancelFilter;

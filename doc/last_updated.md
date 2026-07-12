@@ -20,6 +20,8 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
    - `/name` ⏎ jumps to alias target, `/name/sub` appends the rest
    - `/name=/some/path` ⏎ defines an alias, `/name=` ⏎ sets it to the active
      panel's current dir (changed 2026-07-08, was delete), `/name=-` ⏎ deletes it
+   - `/=` ⏎ (2026-07-12) saves the current dir as an alias named after its last
+     path segment; `/=/some/path` likewise derives the name from the given path
    - Unknown alias = treated as a literal path, so `/home` still works.
 
 3. **Batch inline rename** — `src/fileviews/ufileviewwithmainctrl.pas`
