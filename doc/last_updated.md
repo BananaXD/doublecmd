@@ -89,6 +89,13 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
       `Ctrl+Right` = `splitpct=+5` (were `cm_TransferLeft`/`cm_TransferRight`,
       now unbound; hkVersion 73 migration rebinds existing profiles).
 
+13. **Ctrl+PgUp / Ctrl+PgDn switch tabs, Chrome-style** (2026-07-12) — "Main" context
+    defaults in `src/uglobs.pas` now bind them to `cm_PrevTab`/`cm_NextTab` alongside
+    Ctrl+Shift+Tab/Ctrl+Tab (single AddIfNotExists call per command with the existing
+    shortcut passed as OldShortcuts, else the add is skipped — see item 12's fix).
+    Previously `cm_ChangeDirToParent`/`cm_OpenArchive`, now unbound; hkVersion 75
+    migration rebinds existing profiles.
+
 Build note: if FPC dies with a random internal `EListError` in unmodified units,
 run `./clean.sh && ./build.sh components` then rebuild — stale PPU state.
 
