@@ -173,7 +173,10 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 74;
+  hkVersion = 75;
+  // 75 - In "Main" context, "Ctrl+PgUp"/"Ctrl+PgDn" rebound from
+  //      "cm_ChangeDirToParent"/"cm_OpenArchive" to "cm_PrevTab"/"cm_NextTab"
+  //      (Chrome-style tab switching).
   // 74 - Repair 73: "Ctrl+Right" was never added (both splitter shortcuts must
   //      be registered in a single AddIfNotExists call).
   // 73 - In "Main" context, "Ctrl+U" rebound from "cm_Exchange" to "cm_Copy".
@@ -1206,6 +1209,16 @@ begin
           Remove(HMHotKey);
       end;
 
+      if HotMan.Version < 75 then
+      begin
+        HMHotKey:= Find(['Ctrl+PgUp']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_ChangeDirToParent') then
+          Remove(HMHotKey);
+        HMHotKey:= Find(['Ctrl+PgDn']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_OpenArchive') then
+          Remove(HMHotKey);
+      end;
+
       AddIfNotExists(['Alt+F8','','',
                       'Ctrl+Down','',''], 'cm_ShowCmdLineHistory');
       AddIfNotExists(['Ctrl+B'],[],'cm_FlatView');
@@ -1231,8 +1244,6 @@ begin
       AddIfNotExists(['Ctrl+F6'],[],'cm_SortBySize');
       AddIfNotExists(['Shift+E'],[],'cm_SortByDate');
       AddIfNotExists(['Ctrl+Enter'],[],'cm_AddFilenameToCmdLine');
-      AddIfNotExists(['Ctrl+PgDn'],[],'cm_OpenArchive');
-      AddIfNotExists(['Ctrl+PgUp'],[],'cm_ChangeDirToParent');
       AddIfNotExists(['Ctrl+Alt+Enter'],[],'cm_ShellExecute');
       AddIfNotExists(['Ctrl+Shift+A'],[],'cm_ShowTabsList');
       AddIfNotExists(['Ctrl+Shift+Alt+A'],[],'cm_AddPathAlias');
@@ -1243,10 +1254,12 @@ begin
       AddIfNotExists(['Ctrl+Shift+X'],[],'cm_CopyNamesToClip');
       AddIfNotExists(['Ctrl+Shift+F1'],[],'cm_ThumbnailsView');
       AddIfNotExists(['Ctrl+Shift+Enter'],[],'cm_AddPathAndFilenameToCmdLine');
-      AddIfNotExists(['Ctrl+Shift+Tab'],[],'cm_PrevTab');
+      AddIfNotExists(['Ctrl+Shift+Tab','','',
+                      'Ctrl+PgUp','',''],'cm_PrevTab', ['Ctrl+Shift+Tab'], []);
       AddIfNotExists(['Ctrl+Shift+F7'],[],'cm_AddNewSearch');
       AddIfNotExists(['Ctrl+Shift+F8'],[],'cm_TreeView');
-      AddIfNotExists(['Ctrl+Tab'],[],'cm_NextTab');
+      AddIfNotExists(['Ctrl+Tab','','',
+                      'Ctrl+PgDn','',''],'cm_NextTab', ['Ctrl+Tab'], []);
       AddIfNotExists(['Ctrl+Up'],[],'cm_OpenDirInNewTab');
       AddIfNotExists(['Ctrl+\'],[],'cm_ChangeDirToRoot');
       AddIfNotExists(['Ctrl+.'],[],'cm_ShowSysFiles');
