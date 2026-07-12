@@ -1,3 +1,6 @@
+var
+  QuickLookShortCut: TShortCut;
+
 procedure toggleTreeViewAction( const Sender: id );
 begin
   frmMain.Commands.cm_TreeView([]);
@@ -153,7 +156,7 @@ end;
 
 procedure finderRevealAction( const Sender: id );
 begin
-  TDarwinApplicationUtil.performService( 'Finder/Reveal' );
+  frmMain.Commands.cm_RevealInSystemFileManager([]);
 end;
 
 procedure finderInfoAction( const Sender: id );
@@ -355,7 +358,7 @@ procedure onGetCommandMenu( const menu: TMenu );
     Result:= TMenuItem.Create( menu );
     Result.Caption:= rsMFSTBICommandMenuQuickLook;
     Result.OnClick:= @toolBarMenuHandler.showQuickLookPanel;
-    Result.ShortCut:= ShortCut( Word(' '), [ssAlt] );
+    Result.ShortCut:= QuickLookShortCut;
   end;
 
   function createTagMenuItem: TMenuItem;
@@ -451,7 +454,7 @@ end;
 
 procedure iCloudAction( const Sender: id );
 begin
-  TDarwinFileViewUtil.addiCloudDrivePage;
+  frmMain.Commands.cm_OpeniCloud([]);
 end;
 
 procedure networkAction( const Sender: id );
@@ -548,8 +551,8 @@ const
     priority: NSToolbarItemVisibilityPriorityStandard;
     navigational: False;
     iconName: 'cloud';
-    title: rsMFSTBIiCloudDriveTitle;
-    tips: rsMFSTBIiCloudDriveTips;
+    title: 'iCloud Drive';
+    tips: 'iCloud Drive';
     bordered: True;
     onAction: @iCloudAction;
   );
@@ -888,14 +891,29 @@ const
     );
   );
 
+procedure translateMainFormToolbarItem;
+var
+  poFile: TPOFile;
+begin
+  if NOT (LRSTranslator is TTranslator) then
+    Exit;
+
+  poFile:= TTranslator(LRSTranslator).POFile;
+  translateItemConfig( poFile, 'tfrmmain.actopenicloud', iCloudItemConfig );
+end;
+
 procedure addMainFormShortCutTips;
 begin
   addShortCutTipsToItemConfig( 'Main', 'cm_ViewHistoryPrev', goBackwardItemConfig );
   addShortCutTipsToItemConfig( 'Main', 'cm_ViewHistoryNext', goForwardItemConfig );
+  addShortCutTipsToItemConfig( 'Main', 'cm_OpeniCloud', iCloudItemConfig );
   addShortCutTipsToItemConfig( 'Main', 'cm_OpenVirtualFileSystemList', networkItemConfig );
   addShortCutTipsToItemConfig( 'Main', 'cm_OpenStash', stashItemConfig );
   addShortCutTipsToItemConfig( 'Main', 'cm_Share', shareItemConfig );
   addShortCutTipsToItemConfig( 'Main', 'cm_AirDrop', airDropItemConfig );
+  addShortCutTipsToItemConfig( 'Main', 'cm_RevealInSystemFileManager', finderRevealItemConfig );
+
+  addShortCutTipsToItemConfig( QuickLookShortCut, quickLookItemConfig );
 end;
 
 procedure joinPrivilegeTips;
@@ -922,9 +940,12 @@ end;
 
 procedure doInitMainFormConfig;
 begin
+  QuickLookShortCut:= ShortCut( Word(' '), [ssAlt] );
+
   loadVectorImageWithName( 'airdrop.svg', 'doublecmd.airdrop' );
   loadVectorImageWithName( 'finder.svg', 'doublecmd.finder' );
 
+  translateMainFormToolbarItem;
   addMainFormShortCutTips;
   joinPrivilegeTips;
 

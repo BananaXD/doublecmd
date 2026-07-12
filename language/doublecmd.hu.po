@@ -2620,6 +2620,16 @@ msgstr "Mappa megnyitása ú&j lapon"
 msgid "Open Drive by Index"
 msgstr "Meghajtó megnyitása index alapján"
 
+#: tfrmmain.actopenicloud.caption
+msgctxt "tfrmmain.actopenicloud.caption"
+msgid "iCloud Drive"
+msgstr "iCloud meghajtó"
+
+#: tfrmmain.actopenicloud.hint
+msgctxt "tfrmmain.actopenicloud.hint"
+msgid "iCloud Drive"
+msgstr "iCloud meghajtó"
+
 #: tfrmmain.actopenstash.caption
 msgid "Open Stash"
 msgstr ""
@@ -2705,6 +2715,14 @@ msgstr "Utoljára betöltött Kedvenc Lapok újramentése"
 #: tfrmmain.actrestoreselection.caption
 msgid "&Restore Selection"
 msgstr "Kijelölés vissza&állítása"
+
+#: tfrmmain.actrevealinsystemfilemanager.caption
+msgid "Reveal in File Manager"
+msgstr ""
+
+#: tfrmmain.actrevealinsystemfilemanager.hint
+msgid "Reveal in System File Manager"
+msgstr ""
 
 #: tfrmmain.actreverseorder.caption
 msgid "Re&verse Order"
@@ -11099,16 +11117,6 @@ msgstr "Vízszintes felosztás mód váltása"
 #: ulng.rsmfstbihorzsplittitle
 msgid "HorzSplit"
 msgstr "VízszFeloszt"
-
-#: ulng.rsmfstbiiclouddrivetips
-msgctxt "ulng.rsmfstbiiclouddrivetips"
-msgid "iCloud Drive"
-msgstr "iCloud meghajtó"
-
-#: ulng.rsmfstbiiclouddrivetitle
-msgctxt "ulng.rsmfstbiiclouddrivetitle"
-msgid "iCloud Drive"
-msgstr "iCloud meghajtó"
 
 #: ulng.rsmfstbinetworktips
 msgctxt "ulng.rsmfstbinetworktips"

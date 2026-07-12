@@ -662,9 +662,9 @@ begin
   Viewer.LoadFile(0);
 
   if (WaitData = nil) then
-    Viewer.ShowOnTop
+    Viewer.Show
   else begin
-    WaitData.ShowOnTop(Viewer);
+    WaitData.Show(Viewer);
   end;
 end;
 
@@ -3084,7 +3084,8 @@ end;
 function TfrmViewer.GetListerRect: TRect;
 begin
   Result:= ClientRect;
-  Dec(Result.Bottom, Status.Height);
+  if Status.Visible then
+    Dec(Result.Bottom, Status.Height);
   if Splitter.Visible then
   begin
     Inc(Result.Left, Splitter.Left + Splitter.Width);

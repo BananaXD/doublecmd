@@ -2611,6 +2611,16 @@ msgstr "새 탭에 폴더 열기(&F)"
 msgid "Open Drive by Index"
 msgstr "인덱스로 드라이브 열기"
 
+#: tfrmmain.actopenicloud.caption
+msgctxt "tfrmmain.actopenicloud.caption"
+msgid "iCloud Drive"
+msgstr "iCloud 드라이버"
+
+#: tfrmmain.actopenicloud.hint
+msgctxt "tfrmmain.actopenicloud.hint"
+msgid "iCloud Drive"
+msgstr "iCloud 드라이버"
+
 #: tfrmmain.actopenstash.caption
 msgid "Open Stash"
 msgstr "보관함 열기"
@@ -2696,6 +2706,14 @@ msgstr "마지막으로 불러온 즐겨찾기 탭에 저장"
 #: tfrmmain.actrestoreselection.caption
 msgid "&Restore Selection"
 msgstr "선택 항목 복원(&R)"
+
+#: tfrmmain.actrevealinsystemfilemanager.caption
+msgid "Reveal in File Manager"
+msgstr ""
+
+#: tfrmmain.actrevealinsystemfilemanager.hint
+msgid "Reveal in System File Manager"
+msgstr ""
 
 #: tfrmmain.actreverseorder.caption
 msgid "Re&verse Order"
@@ -11099,16 +11117,6 @@ msgstr "수평 분할 모드 전환"
 #: ulng.rsmfstbihorzsplittitle
 msgid "HorzSplit"
 msgstr "수평 분할"
-
-#: ulng.rsmfstbiiclouddrivetips
-msgctxt "ulng.rsmfstbiiclouddrivetips"
-msgid "iCloud Drive"
-msgstr "iCloud 드라이버"
-
-#: ulng.rsmfstbiiclouddrivetitle
-msgctxt "ulng.rsmfstbiiclouddrivetitle"
-msgid "iCloud Drive"
-msgstr "iCloud 드라이버"
 
 #: ulng.rsmfstbinetworktips
 msgctxt "ulng.rsmfstbinetworktips"

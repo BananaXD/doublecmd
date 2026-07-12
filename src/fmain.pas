@@ -78,6 +78,8 @@ type
     actAddToStash: TAction;
     actEmptyStash: TAction;
     actAirDrop: TAction;
+    actRevealInSystemFileManager: TAction;
+    actOpeniCloud: TAction;
     actShare: TAction;
     actRemoveFromStash: TAction;
     actOpenStash: TAction;
@@ -820,7 +822,6 @@ type
 
   protected
     procedure CreateWnd; override;
-    procedure DoFirstShow; override;
     procedure DoAutoAdjustLayout(const AMode: TLayoutAdjustmentPolicy;
                             const AXProportion, AYProportion: Double); override;
 
@@ -3036,6 +3037,9 @@ begin
 
   if Assigned(Application.Icon) then begin
     MainTrayIcon.Icon.Assign(Application.Icon);
+  end
+  else begin
+    MainTrayIcon.Icon.LoadFromResourceName(HInstance, 'MAINICON');
   end;
 
   Screen.Cursors[crArrowCopy] := LoadCursorFromLazarusResource('ArrowCopy');
@@ -3110,41 +3114,39 @@ end;
 procedure TfrmMain.UpdateHotDirIcons;
 var
   I: Integer;
-  iconsDir: String;
-  fileName: String;
-  iconImg: TPicture;
+  ASize: Integer;
+  AFactor: Double;
+  ABitmap: TCustomBitmap;
 begin
-  pmHotList.Images:=nil; { TODO -oDB : The images of popup menu in configuration should also be nilled to be correct }
+  pmHotList.Images:= nil; { TODO -oDB : The images of popup menu in configuration should also be nilled to be correct }
   imgLstDirectoryHotlist.Clear;
 
-  fileName := IntToStr(gIconsInMenusSize);
-  iconsDir := gpPixmapPath + 'dctheme' + PathDelim + fileName;
-  iconsDir := iconsDir + 'x' + fileName + PathDelim + 'actions';
-  if not mbDirectoryExists(iconsDir) then Exit;
+  if not gIconsInMenus then Exit;
 
-  iconImg := TPicture.Create;
-  try
-    fileName := IntToStr(gIconsInMenusSize);
-    iconsDir := gpPixmapPath + 'dctheme' + PathDelim + fileName;
-    iconsDir := iconsDir + 'x' + fileName + PathDelim + 'dirhotlist';
-    imgLstDirectoryHotlist.Width := gIconsInMenusSize;
-    imgLstDirectoryHotlist.Height := gIconsInMenusSize;
-    pmHotList.Images:=imgLstDirectoryHotlist;
+  ASize:= gIconsInMenusSize;
+  AFactor:= GetCanvasScaleFactor;
 
-    for I:=0 to pred(length(ICONINDEXNAME)) do
+  if (AFactor > 1.0) then
+  begin
+    ASize:= Round(ASize * AFactor);
+  end;
+
+  imgLstDirectoryHotlist.Scaled := (AFactor > 1.0);
+  imgLstDirectoryHotlist.Width := gIconsInMenusSize;
+  imgLstDirectoryHotlist.Height := gIconsInMenusSize;
+  imgLstDirectoryHotlist.RegisterResolutions([ASize]);
+
+  pmHotList.Images:= imgLstDirectoryHotlist;
+
+  for I:= 0 to High(ICONINDEXNAME) do
+  begin
+    ABitmap:= PixMapManager.GetThemeIcon(ittInternal, ICONINDEXNAME[I], gIconsInMenusSize);
+
+    if Assigned(ABitmap) then
     begin
-      filename:=iconsDir+PathDelim+ICONINDEXNAME[I]+'.png';
-      if mbFileExists(fileName) then
-      try
-        iconImg.LoadFromFile(fileName);
-        imgLstDirectoryHotlist.Add(iconImg.Bitmap, nil);
-      except
-        // Skip
-      end;
+      imgLstDirectoryHotlist.Add(ABitmap, nil);
+      ABitmap.Free;
     end;
-
-  finally
-    FreeAndNil(iconImg);
   end;
 end;
 
@@ -4163,31 +4165,20 @@ begin
 end;
 
 procedure TfrmMain.CreateWnd;
+var
+  bFirst: Boolean;
 begin
+  bFirst:= (Application.MainForm.Tag = 0);
+
   // Must be before CreateWnd
-  LoadWindowState;
+  if bFirst then LoadWindowState;
 
   inherited CreateWnd;
 
-  UpdateActionIcons;
+  if bFirst then UpdateActionIcons;
 
   // Save real main form handle
   Application.MainForm.Tag:= Handle;
-end;
-
-procedure TfrmMain.DoFirstShow;
-var
-  ANode: TXmlNode;
-begin
-  inherited DoFirstShow;
-
-  // Load window state
-  ANode := gConfig.FindNode(gConfig.RootNode, 'MainWindow/Position', True);
-
-  if gConfig.GetValue(ANode, 'Maximized', True) then
-    Self.WindowState := wsMaximized;
-
-  lastWindowState := WindowState;
 end;
 
 procedure TfrmMain.WMMove(var Message: TLMMove);
@@ -6517,10 +6508,12 @@ begin
     end;
     if gConfig.GetValue(ANode, 'Maximized', True) then
       lastWindowState:= TWindowState.wsMaximized
-    else
+    else begin
       lastWindowState:= TWindowState.wsNormal;
+    end;
     SetBounds(FRestoredLeft, FRestoredTop, FRestoredWidth, FRestoredHeight);
   end;
+  WindowState:= lastWindowState;
 end;
 
 procedure TfrmMain.SaveWindowState;

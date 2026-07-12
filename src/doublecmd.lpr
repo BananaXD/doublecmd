@@ -59,6 +59,7 @@ uses
   {$ENDIF}
   {$IFDEF LCLGTK3}
   uGtk3WSControls,
+  uGtk3WSMenus,
   {$ENDIF}
   {$IFDEF darwin}
   uDarwinApplication,
@@ -243,7 +244,7 @@ begin
       // in Application.CreateForm above.
       uKeyboard.HookKeyboardLayoutChanged;
 
-      frmMain.ShowOnTop;
+      frmMain.Show;
       Application.ProcessMessages;
       Application.Run;
 

@@ -2621,6 +2621,16 @@ msgstr "Verzeichnis in neue&m Tab öffnen"
 msgid "Open Drive by Index"
 msgstr "Laufwerk/Medium per Index öffnen"
 
+#: tfrmmain.actopenicloud.caption
+msgctxt "tfrmmain.actopenicloud.caption"
+msgid "iCloud Drive"
+msgstr "iCloud Drive"
+
+#: tfrmmain.actopenicloud.hint
+msgctxt "tfrmmain.actopenicloud.hint"
+msgid "iCloud Drive"
+msgstr "iCloud Drive ist der Cloud-Speicher von Apple. Vergleichbar mit z.B. Dropbox, OneDrive oder Google Drive"
+
 #: tfrmmain.actopenstash.caption
 msgid "Open Stash"
 msgstr ""
@@ -2706,6 +2716,14 @@ msgstr "Erneut in zuletzt geladenem ☆-Tab speichern"
 #: tfrmmain.actrestoreselection.caption
 msgid "&Restore Selection"
 msgstr "Auswahl w&iederherstellen"
+
+#: tfrmmain.actrevealinsystemfilemanager.caption
+msgid "Reveal in File Manager"
+msgstr ""
+
+#: tfrmmain.actrevealinsystemfilemanager.hint
+msgid "Reveal in System File Manager"
+msgstr ""
 
 #: tfrmmain.actreverseorder.caption
 msgid "Re&verse Order"
@@ -11098,16 +11116,6 @@ msgstr "Horizontal geteilt ein- und ausschalten"
 #: ulng.rsmfstbihorzsplittitle
 msgid "HorzSplit"
 msgstr "Horizontal geteilt"
-
-#: ulng.rsmfstbiiclouddrivetips
-msgctxt "ulng.rsmfstbiiclouddrivetips"
-msgid "iCloud Drive"
-msgstr "iCloud Drive ist der Cloud-Speicher von Apple. Vergleichbar mit z.B. Dropbox, OneDrive oder Google Drive"
-
-#: ulng.rsmfstbiiclouddrivetitle
-msgctxt "ulng.rsmfstbiiclouddrivetitle"
-msgid "iCloud Drive"
-msgstr "iCloud Drive"
 
 #: ulng.rsmfstbinetworktips
 msgctxt "ulng.rsmfstbinetworktips"

@@ -142,24 +142,38 @@ begin
   FIcon:= AValue;
 end;
 
+// TFile and TDisplayFile each perform their respective functions.
+// in TDisplayFile, `Extension` and `NameNoExt` no longer depend on TFile.
+// display-related adjustments are made based on factors such as whether the
+// item is a directory.
 procedure TDisplayFile.SetDisplayName(const AName: String);
+
+  function isDir: Boolean; inline;
+  begin
+    Result:= Assigned(FSFile);
+    if NOT Result then
+      Exit;
+    Result:= FSFile.IsDirectory or FSFile.IsLinkToDirectory or FSFile.IsSpecial;
+    if NOT Result then
+      Exit;
+    {$IFDEF DARWIN}
+    Result:= NOT FSFile.MacOSSpecificProperty.IsPackage;
+    if NOT Result then
+      Exit;
+    {$ENDIF}
+    Result:= True;
+  end;
+
 begin
   if (AName = EmptyStr) and Assigned(FSFile) then
-  begin
-    FDisplayName:= FSFile.Name;
-    FDisplayNameNoExt:= FSFile.NameNoExt;
-    FDisplayExt:= FSFile.Extension;
-  end else begin
+    FDisplayName:= FSFile.Name
+  else
     FDisplayName:= AName;
-    if Assigned(FSFile) then
-    begin
-      if FSFile.IsDirectory or FSFile.IsLinkToDirectory or FSFile.IsSpecial then
-      begin
-        FDisplayExt:= '';
-        FDisplayNameNoExt:= FDisplayName;
-        Exit;
-      end;
-    end;
+
+  if isDir then begin
+    FDisplayExt:= '';
+    FDisplayNameNoExt:= FDisplayName;
+  end else begin
     TFile.SplitIntoNameAndExtension(FDisplayName, FDisplayNameNoExt, FDisplayExt);
   end;
 end;
@@ -218,7 +232,10 @@ begin
 
     if Assigned(AFile.FFSFile) then
       AFile.FDisplayStrings.AddStrings(FDisplayStrings);
-    AFile.DisplayName:= FDisplayName;
+
+    AFile.FDisplayExt:= FDisplayExt;
+    AFile.FDisplayName:= FDisplayName;
+    AFile.FDisplayNameNoExt:= FDisplayNameNoExt;
   end;
 end;
 
