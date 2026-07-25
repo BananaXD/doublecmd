@@ -1,4 +1,4 @@
-# Last Updated — 2026-07-10
+# Last Updated — 2026-07-25
 
 Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspired-usability.md`.
 
@@ -7,7 +7,12 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
 1. **Multi-mode find-as-you-type bar** — `src/frames/fquicksearch.pas`
    - First typed character picks the mode, bold label on the left shows it:
      - no prefix → normal quick search (unchanged)
-     - `*` → live filter mode (prefix stripped from the pattern, deleting `*` switches back)
+     - `*` → live filter mode (prefix stripped from the pattern, deleting `*` switches back).
+       FIXED 2026-07-25: typing `*` never *opened* the bar — `CheckSearchOrFilter(UTF8Key)`
+       discarded `+`/`-`/`*` chars (numpad-selection-key guard), so the mode was unreachable
+       from the panel. Now only blocks `*` when the physical Num* key is down
+       (`GetKeyState(VK_MULTIPLY)`, LCLIntf), keeping Num* = `cm_MarkInvert` intact while
+       main-keyboard `*` (e.g. Shift+8) opens filter mode.
      - `>` → command palette: dropdown listbox above the bar over all `cm_` commands
        (name-prefix matches ranked first, then name/caption substring matches);
        Up/Down navigate, Enter/double-click execute

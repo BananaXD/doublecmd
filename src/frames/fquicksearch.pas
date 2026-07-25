@@ -162,7 +162,7 @@ type
 implementation
 
 uses
-  Math, Graphics, LazUTF8,
+  Math, Graphics, LazUTF8, LCLIntf,
   DCOSUtils,
   uKeyboard,
   uGlobs,
@@ -588,7 +588,12 @@ begin
   Result := False;
 
   // Check for certain Ascii keys.
-  if (Length(UTF8Key) = 1) and (UTF8Key[1] in [#0..#32,'+','-','*']) then
+  if (Length(UTF8Key) = 1) and (UTF8Key[1] in [#0..#32,'+','-']) then
+    Exit;
+
+  // '*' starts the bar in filter mode, but only from the main keyboard:
+  // Num* is the invert-selection hotkey and must not leak into typing.
+  if (UTF8Key = '*') and (GetKeyState(VK_MULTIPLY) < 0) then
     Exit;
 
   ModifierKeys := GetKeyShiftStateEx;
