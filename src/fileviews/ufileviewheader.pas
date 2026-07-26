@@ -370,8 +370,17 @@ begin
 end;
 
 procedure TFileViewHeader.UpdatePathLabel;
+var
+  AWidth: Integer;
 begin
-  FPathLabel.Caption := MinimizeFilePath(FFileView.CurrentPath, FPathLabel.Canvas, FPathLabel.Width);
+  if FFileView.FlatView then
+    FPathLabel.Prefix := rsFlatViewIndicator
+  else
+    FPathLabel.Prefix := '';
+  AWidth := FPathLabel.Width;
+  if FPathLabel.Prefix <> '' then
+    AWidth := AWidth - FPathLabel.Canvas.TextWidth(' ' + FPathLabel.Prefix + ' ');
+  FPathLabel.Caption := MinimizeFilePath(FFileView.CurrentPath, FPathLabel.Canvas, AWidth);
 end;
 
 procedure TFileViewHeader.UpdateColor;

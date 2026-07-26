@@ -1312,8 +1312,9 @@ begin
      (not ((((GetKeyTypingAction(ShiftEx) <> ktaNone) and (HMForm.Name = 'Main') and
       (not HasExplicitHotkey))
 {$IFDEF MSWINDOWS}
-      // Don't execute hotkeys with Ctrl+Alt = AltGr on Windows.
-      or (HasKeyboardAltGrKey and
+      // Don't execute hotkeys with Ctrl+Alt = AltGr on Windows,
+      // unless the shortcut is explicitly assigned to a command.
+      or (HasKeyboardAltGrKey and (not HasExplicitHotkey) and
           (ShiftEx * KeyModifiersShortcutNoText = [ssCtrl, ssAlt]) and
           (gKeyTyping[ktmNone] <> ktaNone))
       // Don't execute hotkeys with AltGr on Windows.

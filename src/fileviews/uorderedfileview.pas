@@ -354,6 +354,12 @@ begin
         begin
           StopWorkers;
           Key := 0;
+        end
+        // Key = 0 means Esc was already consumed (e.g. closing the search bar).
+        else if (Key <> 0) and FlatView then
+        begin
+          ExitFlatView;
+          Key := 0;
         end;
       end;
   end;

@@ -173,7 +173,10 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 75;
+  hkVersion = 77;
+  // 77 - In "Main" context, "Ctrl+B"/"Ctrl+Alt+F" for "cm_FlatView" now pass
+  //      "dirs=off"/"dirs=on" (flat view without/with directory entries).
+  // 76 - In "Main" context, add shortcut "Ctrl+Alt+F" for "cm_FlatView".
   // 75 - In "Main" context, "Ctrl+PgUp"/"Ctrl+PgDn" rebound from
   //      "cm_ChangeDirToParent"/"cm_OpenArchive" to "cm_PrevTab"/"cm_NextTab"
   //      (Chrome-style tab switching).
@@ -1219,9 +1222,24 @@ begin
           Remove(HMHotKey);
       end;
 
+      if HotMan.Version < 77 then
+      begin
+        // Drop stock parameterless cm_FlatView bindings so the AddIfNotExists
+        // below can re-add them with the dirs= parameter.
+        HMHotKey:= Find(['Ctrl+B']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_FlatView') and
+           HMHotKey.SameParams([]) then
+          Remove(HMHotKey);
+        HMHotKey:= Find(['Ctrl+Alt+F']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_FlatView') and
+           HMHotKey.SameParams([]) then
+          Remove(HMHotKey);
+      end;
+
       AddIfNotExists(['Alt+F8','','',
                       'Ctrl+Down','',''], 'cm_ShowCmdLineHistory');
-      AddIfNotExists(['Ctrl+B'],[],'cm_FlatView');
+      AddIfNotExists(['Ctrl+B','','dirs=off','',
+                      'Ctrl+Alt+F','','dirs=on',''],'cm_FlatView', ['Ctrl+B'], []);
       AddIfNotExists(['Ctrl+D'],[],'cm_DirHotList');
       AddIfNotExists(['Ctrl+F'],[],'cm_QuickFilter');
       AddIfNotExists(['Ctrl+H'],[],'cm_DirHistory');

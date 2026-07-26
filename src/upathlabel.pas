@@ -43,6 +43,10 @@ type
     FMousePos: Integer;
     FColors: array[0..3] of TColor;
     {en
+       Short badge drawn before the path with inverted colors (e.g. "FLAT").
+    }
+    FPrefix: String;
+    {en
        How much space to leave between the text and left border.
     }
     FLeftSpacing: Integer;
@@ -61,6 +65,12 @@ type
 
     function GetColor(const AIndex: Integer): TColor;
     procedure SetColor(const AIndex: Integer; const AValue: TColor); overload;
+    procedure SetPrefix(const AValue: String);
+    {en
+       Horizontal position where the path text starts
+       (accounts for the prefix badge when present).
+    }
+    function TextIndent: Integer;
 
   protected
 
@@ -83,6 +93,7 @@ type
 
     property AllowHighlight: Boolean read FAllowHighlight write FAllowHighlight;
     property LeftSpacing: Integer read FLeftSpacing write FLeftSpacing;
+    property Prefix: String read FPrefix write SetPrefix;
     property SelectedDir: String read FSelectedDir;
 
     property ActiveColor: TColor index 0 read GetColor write SetColor;
@@ -130,7 +141,17 @@ begin
   TextTop := (Height - Canvas.TextHeight(Text)) div 2;
 
   Canvas.FillRect(0, 0, Width, Height); // background
-  Canvas.TextOut(LeftSpacing, TextTop, Text); // path
+
+  if FPrefix <> '' then
+  begin
+    Canvas.Brush.Color := Font.Color;  // reverse colors
+    Canvas.Font.Color  := Color;
+    Canvas.TextOut(LeftSpacing, TextTop, ' ' + FPrefix + ' ');
+    Canvas.Brush.Color := Color;
+    Canvas.Font.Color  := Font.Color;
+  end;
+
+  Canvas.TextOut(TextIndent, TextTop, Text); // path
 
   // Highlight part of the path if mouse is over it.
   if FHighlightStartPos <> -1 then
@@ -184,7 +205,7 @@ begin
       PartText := Copy(Text, StartPos, CurPos - StartPos);
       PartWidth := Canvas.TextWidth(PartText);
       LeftText := Copy(Text, 0, CurPos-1 );
-      CurrentHighlightPos:= LeftSpacing + Canvas.TextWidth( LeftText ) - PartWidth;
+      CurrentHighlightPos:= TextIndent + Canvas.TextWidth( LeftText ) - PartWidth;
 
       // If mouse is over this part of the path - highlight it.
       if InRange(FMousePos, CurrentHighlightPos, CurrentHighlightPos + PartWidth) then
@@ -229,6 +250,25 @@ end;
 function TPathLabel.GetColor(const AIndex: Integer): TColor;
 begin
   Result:= FColors[AIndex];
+end;
+
+procedure TPathLabel.SetPrefix(const AValue: String);
+begin
+  if FPrefix <> AValue then
+  begin
+    FPrefix := AValue;
+    Invalidate;
+  end;
+end;
+
+function TPathLabel.TextIndent: Integer;
+begin
+  Result := FLeftSpacing;
+  if FPrefix <> '' then
+  begin
+    Canvas.Font := Self.Font;
+    Result := Result + Canvas.TextWidth(' ' + FPrefix + ' ') + 2 * FLeftSpacing;
+  end;
 end;
 
 procedure TPathLabel.SetColor(const AIndex: Integer; const AValue: TColor);

@@ -137,6 +137,9 @@ procedure TFileViewWithPanels.DisplayFileListChanged;
 begin
   inherited DisplayFileListChanged;
   UpdateInfoPanel;
+  // Keep the flat view indicator in the path label up to date -
+  // every flat view transition ends in a file list change.
+  pnlHeader.UpdatePathLabel;
 end;
 
 procedure TFileViewWithPanels.DoActiveChanged;

@@ -4921,6 +4921,11 @@ begin
         UpdateFreeSpace(Page.Notebook.Side, False);
       end;
     end;
+
+  // Track flat view state of the active panel (toggled by command, Esc
+  // or navigation - every transition ends in a file list change).
+  if FileView = ActiveFrame then
+    actFlatView.Checked := FileView.FlatView;
 end;
 
 procedure TfrmMain.SetActiveFrame(panel: TFilePanelSelect);
@@ -4950,6 +4955,7 @@ begin
     actBriefView.Checked:= True
   else if AFileView is TThumbFileView then
     actThumbnailsView.Checked:= True;
+  actFlatView.Checked:= AFileView.FlatView;
   if Assigned(onFileViewUpdated) then
     onFileViewUpdated(AFileView);
 end;

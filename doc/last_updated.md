@@ -1,4 +1,4 @@
-# Last Updated — 2026-07-25
+# Last Updated — 2026-07-26
 
 Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspired-usability.md`.
 
@@ -101,8 +101,53 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
     Previously `cm_ChangeDirToParent`/`cm_OpenArchive`, now unbound; hkVersion 75
     migration rebinds existing profiles.
 
+14. **Flat view promotion, DOpus-style** (2026-07-26) — design-doc item 4.
+    Core flat view already existed (`cm_FlatView`, Ctrl+B); this makes it first-class:
+    - Default hotkeys (hkVersion 77): **Ctrl+B = `cm_FlatView dirs=off`**
+      (files-only flat) and **Ctrl+Alt+F = `cm_FlatView dirs=on`** (flat with
+      directory rows, DOpus "Mixed"). Each key enters/switches to its mode and
+      exits flat view when pressed again in that same mode; migration removes
+      old parameterless bindings first (AddIfNotExists skips existing shortcuts,
+      item-12 lesson). To make Ctrl+Alt+F fire at all, the Windows AltGr
+      suppression in `uhotkeymanager.pas` `KeyDownHandler` now consults
+      `HasExplicitHotkey` (explicitly bound Ctrl+Alt combos beat typing).
+    - **`cm_FlatView dirs=on|off|toggle`** — parameterized mode selection. New
+      `FlatViewDirs` plumbed `TFileView` → `TFileListBuilder`
+      → `TFileSourceListOperation`; only the filesystem list op honors it (WCX
+      archives stay files-only). Enter/double-click on a dir row exits flat view
+      and lands in that dir (`ChangePathToChild` flat branch uses `aFile.FullPath`;
+      `SetCurrentPath` clears the flag). Parameterless `cm_FlatView` (menu item)
+      keeps the old behavior: enter files-only flat / exit from any flat mode.
+    - **`TFileView.ExitFlatView`** — extracted exit logic (navigate to active
+      file's real dir, or pop the search-result source for `cm_FlatViewSel`);
+      used by `cm_FlatView`, `cm_FlatViewSel`, and a new **Esc exits flat view**
+      branch in `uorderedfileview.pas` (progressive: search bar → filter →
+      cancel work → exit flat).
+    - **Auto "Location" column** (columns view only): entering flat view installs
+      a temporary slave columns class (`isSlave`/`ActiveColmSlave`, same mechanism
+      as fFindDlg feed-to-panel) — a clone of the active set plus a synthetic
+      `Location` column at index 1 with content `[DC().GETFILEPATH{}]` (so header
+      sorting maps to `fsfPath`), rendered as the path *relative to the flat root*
+      via an override in `MakeColumnsStrings`. Removed on exit; user's real column
+      set never touched. `DoColumnResized` now skips width persistence for slave
+      sets (also fixes latent width-corruption via fFindDlg slave tabs).
+      New members `FFlatColumnsSet`/`FFlatLocationCol`/`EnsureFlatViewColumns`
+      (called from `BeforeMakeFileList` + `DisplayFileListChanged`).
+    - **FLAT badge**: `TPathLabel` got a `Prefix` property drawn inverted before
+      the path (`TextIndent` keeps segment-click hit-testing aligned);
+      `TFileViewHeader.UpdatePathLabel` sets it from `FlatView`;
+      `TFileViewWithPanels.DisplayFileListChanged` refreshes the label.
+      `actFlatView.Checked` tracked in `fmain.pas` (`UpdateFileView` +
+      `FileViewFilesChanged`). Strings `rsColLocation`, `rsFlatViewIndicator`.
+    - Not done (user deferred): live recursive FS watching on Windows,
+      path-aware quick filter. Flat state is not session-persisted (upstream
+      behavior, unchanged).
+
 Build note: if FPC dies with a random internal `EListError` in unmodified units,
 run `./clean.sh && ./build.sh components` then rebuild — stale PPU state.
+On Windows: `clean.bat` + `build.bat components`, then
+`C:\lazarus\lazbuild.exe src\doublecmd.lpi --bm=release` (rename a running
+`doublecmd.exe` to `doublecmd.exe.old` first, or linking fails with error 5).
 
 ## Dropped
 

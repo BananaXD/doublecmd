@@ -109,8 +109,13 @@ type
     pmColumnsMenu: TPopupMenu;
     dgPanel: TDrawGridEx;
     FOnColumnResized: TColumnResized;
+    // Temporary columns class with a synthetic "Location" column, installed
+    // as ActiveColmSlave while flat view is active (owned by this view).
+    FFlatColumnsSet: TPanelColumnsClass;
+    FFlatLocationCol: Integer;
 
     function GetColumnsClass: TPanelColumnsClass;
+    procedure EnsureFlatViewColumns;
 
     procedure SetRowCount(Count: Integer);
     procedure SetFilesDisplayItems;
@@ -870,6 +875,8 @@ begin
     if Assigned(ActiveColmSlave) then
     begin
       isSlave:= False;
+      FFlatColumnsSet:= nil;
+      FFlatLocationCol:= -1;
       FreeAndNil(ActiveColmSlave);
     end;
     UpdateColumnsView;
@@ -890,11 +897,46 @@ begin
       if Assigned(ActiveColmSlave) then
       begin
         isSlave:= False;
+        FFlatColumnsSet:= nil;
+        FFlatLocationCol:= -1;
         FreeAndNil(ActiveColmSlave);
       end;
       UpdateColumnsView;
       RedrawFiles;
     end;
+  end;
+end;
+
+procedure TColumnsFileView.EnsureFlatViewColumns;
+var
+  I: Integer;
+begin
+  if FlatView and (FFlatColumnsSet = nil) and (not isSlave) then
+  begin
+    // Clone the active columns set and insert a synthetic "Location" column
+    // (relative path) right after the name column. Installed as a slave class
+    // so the user's real column set is never touched.
+    FFlatColumnsSet := TPanelColumnsClass.Create;
+    FFlatColumnsSet.Assign(GetColumnsClass);
+    I := FFlatColumnsSet.Add(rsColLocation, '[DC().GETFILEPATH{}]',
+                             Max(120, ClientWidth div 4), taLeftJustify);
+    while I > 1 do
+    begin
+      FFlatColumnsSet.Exchange(I, I - 1);
+      Dec(I);
+    end;
+    FFlatLocationCol := 1;
+    isSlave := True;
+    ActiveColmSlave := FFlatColumnsSet;
+    UpdateColumnsView;
+  end
+  else if (not FlatView) and Assigned(FFlatColumnsSet) then
+  begin
+    isSlave := False;
+    ActiveColmSlave := nil;
+    FreeAndNil(FFlatColumnsSet);
+    FFlatLocationCol := -1;
+    UpdateColumnsView;
   end;
 end;
 
@@ -931,6 +973,8 @@ begin
 
   FFileNameColumn := -1;
   FExtensionColumn := -1;
+  FFlatColumnsSet := nil;
+  FFlatLocationCol := -1;
 
   // -- other components
 
@@ -962,6 +1006,12 @@ end;
 destructor TColumnsFileView.Destroy;
 begin
   inherited Destroy;
+  if Assigned(FFlatColumnsSet) then
+  begin
+    if ActiveColmSlave = FFlatColumnsSet then
+      ActiveColmSlave := nil;
+    FreeAndNil(FFlatColumnsSet);
+  end;
 end;
 
 function TColumnsFileView.Clone(NewParent: TWinControl): TColumnsFileView;
@@ -1002,6 +1052,7 @@ end;
 procedure TColumnsFileView.BeforeMakeFileList;
 begin
   inherited;
+  EnsureFlatViewColumns;
   if gListFilesInThread then
   begin
     // Display info that file list is being loaded.
@@ -1030,6 +1081,8 @@ procedure TColumnsFileView.DisplayFileListChanged;
 var
   ScrollTo: Boolean;
 begin
+  EnsureFlatViewColumns;
+
   ScrollTo := IsActiveFileVisible;
 
   // Row count updates and Content updates should be grouped in one transaction
@@ -1074,7 +1127,9 @@ procedure TColumnsFileView.DoColumnResized(Sender: TObject;
   end;
 
 begin
-  if gColumnsAutoSaveWidth then
+  // Never persist widths from a slave columns class (flat view "Location"
+  // column set or a search-result tab) into the user's real column set.
+  if gColumnsAutoSaveWidth and (not isSlave) then
   begin
     GetColumnsClass.SetColumnWidth(ColumnIndex, ColumnNewSize);
     UpdateWidth(frmMain.LeftTabs);
@@ -1097,6 +1152,12 @@ begin
     AFile.DisplayStrings.Add(ColumnsClass.GetColumnItemResultString(
       ACol, AFile, FileSource));
   end;
+  // The synthetic flat view "Location" column shows the path relative to
+  // the flat view root instead of the absolute path GETFILEPATH returns.
+  if (FFlatLocationCol >= 0) and (ColumnsClass = ActiveColmSlave) and
+     (FFlatLocationCol < AFile.DisplayStrings.Count) then
+    AFile.DisplayStrings[FFlatLocationCol] :=
+      ExtractDirLevel(CurrentPath, AFile.FSFile.Path);
 end;
 
 procedure TColumnsFileView.EachViewUpdateColumns(AFileView: TFileView; UserData: Pointer);

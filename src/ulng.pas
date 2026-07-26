@@ -522,6 +522,7 @@ resourcestring
   rsSynDefaultText   = 'Default text';
   
   // Columns in file panel
+  rsColLocation = 'Location';
   rsColName = 'Name';
   rsColExt = 'Ext';
   rsColSize = 'Size';
@@ -531,6 +532,9 @@ resourcestring
   // Filter status in file panel
   rsFilterStatus = 'FILTER';
   rsSearchStatus = 'SEARCH';
+
+  // Flat view indicator in file panel header
+  rsFlatViewIndicator = 'FLAT';
 
   // Quick search bar modes
   rsQuickSearchModeCommand = 'Command:';

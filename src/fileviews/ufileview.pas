@@ -229,6 +229,7 @@ type
 
   protected
     FFlatView: Boolean;
+    FFlatViewDirs: Boolean;
     FFileFilter: String;
     FAllDisplayFiles: TDisplayFiles;    //<en List of all files that can be displayed
     FFiles: TDisplayFiles;              //<en List of displayed files (filtered)
@@ -483,6 +484,11 @@ type
        Change the current path to a subdirectory pointed to by aFile.
     }
     procedure ChangePathToChild(const aFile: TFile); virtual;
+    {en
+       Leave flat view mode and navigate to the active file's real directory
+       (or pop the search-result file source for "flat view, only selected").
+    }
+    procedure ExitFlatView;
 
     procedure ExecuteCommand(CommandName: String; const Params: array of String); virtual;
 
@@ -543,6 +549,7 @@ type
     property FileSourcesCount: Integer read GetFileSourcesCount;
     property Flags: TFileViewFlags read FFlags write SetFlags;
     property FlatView: Boolean read FFlatView write SetFlatView;
+    property FlatViewDirs: Boolean read FFlatViewDirs write FFlatViewDirs;
     property Path[FileSourceIndex, PathIndex: Integer]: String read GetPath;
     property PathsCount[FileSourceIndex: Integer]: Integer read GetPathsCount;
 
@@ -766,6 +773,7 @@ begin
   begin
     AFileView.FFlags := FFlags;
     AFileView.FFlatView := FFlatView;
+    AFileView.FFlatViewDirs := FFlatViewDirs;
     AFileView.FLastLoadedFileSource := FLastLoadedFileSource;
     AFileView.FLastLoadedPath := FLastLoadedPath;
     AFileView.FLastMark := FLastMark;
@@ -2193,6 +2201,7 @@ begin
     CurrentPath,
     SortingForSorter,
     FlatView,
+    FlatViewDirs,
     AThread,
     FSortingProperties,
     GetVariantFileProperties,
@@ -3028,6 +3037,10 @@ begin
   begin
     if fspDontChangePath in FileSource.Properties then
       SetFileSystemPath(Self, aFile.FullPath)
+    else if FFlatView then
+      // In flat view a directory row carries its real (possibly nested) path.
+      // Setting CurrentPath also leaves flat view (SetCurrentPath resets it).
+      CurrentPath := IncludeTrailingPathDelimiter(aFile.FullPath)
     else
       CurrentPath := CurrentPath + IncludeTrailingPathDelimiter(FileSource.GetFileName(aFile));
   end;
@@ -3417,6 +3430,30 @@ procedure TFileView.SetFlatView(AFlatView: Boolean);
 begin
   FFlatView:= AFlatView;
   FileSource.GetWatcher.UpdateWatch;
+end;
+
+procedure TFileView.ExitFlatView;
+var
+  AFile: TFile;
+begin
+  if not FFlatView then Exit;
+  FlatView := False;
+  FFlatViewDirs := False;
+  if FileSource.IsInterface(ISearchResultFileSource) then
+    // "Flat view, only selected" pushed a search result file source - pop it.
+    ChangePathToParent(True)
+  else begin
+    AFile := CloneActiveFile;
+    if Assigned(AFile) and AFile.IsNameValid and
+       (not mbCompareFileNames(CurrentPath, AFile.Path)) then
+    begin
+      CurrentPath := AFile.Path;
+      SetActiveFile(AFile.Name);
+    end
+    else
+      Reload;
+    AFile.Free;
+  end;
 end;
 
 procedure TFileView.ActivateEvent(Sender: TObject);

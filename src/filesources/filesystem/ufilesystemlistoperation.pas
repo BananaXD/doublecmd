@@ -40,7 +40,11 @@ begin
       if (sr.Name = '.') or (sr.Name = '..') then Continue;
 
       if FPS_ISDIR(sr.Attr) then
-        FlatView(APath + sr.Name + DirectorySeparator)
+      begin
+        if FFlatViewDirs then
+          FFiles.Add(TFileSystemFileSource.CreateFile(APath, @sr));
+        FlatView(APath + sr.Name + DirectorySeparator);
+      end
       else begin
         AFile := TFileSystemFileSource.CreateFile(APath, @sr);
         FFiles.Add(AFile);

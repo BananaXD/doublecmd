@@ -1194,9 +1194,10 @@ end;
 
 procedure TMainCommands.cm_FlatView(const Params: array of string);
 var
-  AFile: TFile;
   AFileView: TFileView;
   AValue, Param: String;
+  HasDirsParam: Boolean = False;
+  DirsValue: Boolean = False;
 begin
   with frmMain do
   begin
@@ -1210,28 +1211,50 @@ begin
         else if AValue = 'right' then AFileView:= FrameRight
         else if AValue = 'inactive' then AFileView:= NotActiveFrame;
       end
+      else if GetParamValue(Param, 'dirs', AValue) then
+      begin
+        if SameText(AValue, 'toggle') then
+        begin
+          HasDirsParam:= True;
+          DirsValue:= not AFileView.FlatViewDirs;
+        end
+        else
+          HasDirsParam:= GetBoolValue(AValue, DirsValue);
+      end;
     end;
 
     if not (fspListFlatView in AFileView.FileSource.GetProperties) then
     begin
       msgWarning(rsMsgErrNotSupported);
     end
+    else if not HasDirsParam then
+    begin
+      // Plain toggle: enter files-only flat view or leave flat view.
+      if AFileView.FlatView then
+        AFileView.ExitFlatView
+      else begin
+        AFileView.FlatViewDirs:= False;
+        AFileView.FlatView:= True;
+        AFileView.Reload;
+      end;
+    end
     else begin
-      AFileView.FlatView:= not AFileView.FlatView;
+      // dirs=on|off|toggle: enter flat view in the requested mode, switch the
+      // mode in place when already flat, or leave flat view when pressed
+      // again in the same mode (so each binding acts as a toggle).
       if not AFileView.FlatView then
       begin
-        AFile:= AFileView.CloneActiveFile;
-        if Assigned(AFile) and AFile.IsNameValid then
-        begin
-          if not mbCompareFileNames(AFileView.CurrentPath, AFile.Path) then
-          begin
-            AFileView.CurrentPath:= AFile.Path;
-            AFileView.SetActiveFile(AFile.Name);
-          end;
-        end;
-        AFile.Free;
-      end;
-      AFileView.Reload;
+        AFileView.FlatViewDirs:= DirsValue;
+        AFileView.FlatView:= True;
+        AFileView.Reload;
+      end
+      else if AFileView.FlatViewDirs <> DirsValue then
+      begin
+        AFileView.FlatViewDirs:= DirsValue;
+        AFileView.Reload;
+      end
+      else
+        AFileView.ExitFlatView;
     end;
   end;
 end;
@@ -1273,11 +1296,7 @@ begin
   AFileSource:= AFileView.FileSource;
   if AFileView.FlatView then
   begin
-    AFileView.FlatView := False;
-    if AFileSource.IsInterface(ISearchResultFileSource) then
-      AFileView.ChangePathToParent(True)
-    else
-      AFileView.Reload;
+    AFileView.ExitFlatView;
     Exit;
   end;
 
