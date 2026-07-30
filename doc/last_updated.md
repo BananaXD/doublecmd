@@ -1,4 +1,4 @@
-# Last Updated — 2026-07-26
+# Last Updated — 2026-07-29
 
 Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspired-usability.md`.
 
@@ -70,6 +70,16 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
    existing literal path beats the top suggestion. List hides once a subpath (`/name/...`)
    or an `=` definition is being typed. Shared plumbing: `FDropdownValues` holds the value
    behind each visible row (command name / target path), `ShowDropdown` does sizing.
+   - EXTENDED 2026-07-29: **subdirectory completion** (`UpdateDirectoryList`). Once the
+     typed text goes past the first `/segment` — or is a `~/`, `C:`/`C:\`, or `\` drive
+     form — the dropdown lists real subdirectories of the base directory (text up to the
+     last separator, alias-expanded via `ResolveGoToPath`; on Windows a bare leading
+     separator is resolved against the active panel's drive, mirroring
+     `quickSearchGoToPath`). Rows show the full target path; name-prefix matches ranked
+     first, then substring matches; enumeration via `uFindEx`/`FPS_ISDIR`. Enter
+     precedence in `DoGoToPath` changed from `(Path = S) and not mbDirectoryExists(S)`
+     to `not mbDirectoryExists(Path)` — otherwise an alias+partial like `/cc/dou`
+     resolved to a nonexistent path and the highlighted suggestion was ignored.
 
 10. **Windows parity** (2026-07-03, NOT compile-tested — no cross-compiler on this machine;
     verify on a Windows build):

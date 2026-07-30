@@ -102,6 +102,10 @@ type
     procedure EnsureCommandCache;
     procedure UpdateCommandList;
     procedure UpdateAliasList;
+    {en
+       Fills the dropdown with subdirectories of the directory typed so far
+    }
+    procedure UpdateDirectoryList;
     procedure ShowDropdown;
     procedure HideCommandList;
     procedure MoveCommandSelection(ADelta: Integer);
@@ -163,7 +167,7 @@ implementation
 
 uses
   Math, Graphics, LazUTF8, LCLIntf,
-  DCOSUtils,
+  DCOSUtils, uFindEx,
   uKeyboard,
   uGlobs,
   uLng,
@@ -1206,12 +1210,18 @@ var
 begin
   S := edtSearch.Text;
 
-  // aliases apply to "/..." (and "\..." on Windows) only, and only while
-  // typing the first segment (no subpath yet, not an "=" alias definition)
-  if (S = EmptyStr) or (not (S[1] in PATH_SEPARATORS)) or
-     (Pos('=', S) > 0) or (FindPathSeparator(S, 2) > 0) then
+  // no completion while an "=" alias definition is being typed
+  if (S = EmptyStr) or ((S[1] in PATH_SEPARATORS) and (Pos('=', S) > 0)) then
   begin
     HideCommandList;
+    Exit;
+  end;
+
+  // aliases apply to "/..." (and "\..." on Windows) only while typing the
+  // first segment; deeper paths and "~"/drive forms complete real subdirectories
+  if (not (S[1] in PATH_SEPARATORS)) or (FindPathSeparator(S, 2) > 0) then
+  begin
+    UpdateDirectoryList;
     Exit;
   end;
 
@@ -1238,6 +1248,110 @@ begin
       end;
   finally
     lsCommands.Items.EndUpdate;
+  end;
+
+  ShowDropdown;
+end;
+
+procedure TfrmQuickSearch.UpdateDirectoryList;
+var
+  S, BaseDir, Typed, AName: String;
+  I, P: Integer;
+  sr: TSearchRecEx;
+  Names: TStringList;
+{$IFDEF MSWINDOWS}
+  Drive: String;
+{$ENDIF}
+
+  procedure AddDirectory(Index: Integer);
+  begin
+    lsCommands.Items.Add(BaseDir + Names[Index]);
+    FDropdownValues.Add(BaseDir + Names[Index]);
+  end;
+
+begin
+  S := edtSearch.Text;
+
+{$IFDEF MSWINDOWS}
+  // "C:" - complete from the root of that drive
+  if (Length(S) = 2) and (S[2] = ':') then
+    S := S + PathDelim;
+{$ENDIF}
+
+  // split at the last path separator: base directory + partial name typed
+  P := 0;
+  for I := Length(S) downto 1 do
+    if S[I] in PATH_SEPARATORS then
+    begin
+      P := I;
+      Break;
+    end;
+
+  if P = 0 then
+  begin
+    HideCommandList;
+    Exit;
+  end;
+
+  BaseDir := ResolveGoToPath(Copy(S, 1, P));
+  Typed := UTF8LowerCase(Copy(S, P + 1, MaxInt));
+
+{$IFDEF MSWINDOWS}
+  // "\path" (or "/path" with no alias) - path on the active panel's drive,
+  // same as quickSearchGoToPath will do; leave UNC paths ("\\server") alone
+  if (BaseDir[1] in PATH_SEPARATORS) and
+     not ((Length(BaseDir) > 1) and (BaseDir[2] in PATH_SEPARATORS)) then
+  begin
+    Drive := ExtractFileDrive(frmMain.ActiveFrame.CurrentPath);
+    if Drive = EmptyStr then Drive := 'C:';
+    BaseDir := Drive + BaseDir;
+  end;
+{$ENDIF}
+
+  if not mbDirectoryExists(BaseDir) then
+  begin
+    HideCommandList;
+    Exit;
+  end;
+
+  Names := TStringList.Create;
+  try
+    try
+      if FindFirstEx(BaseDir + '*', 0, sr) = 0 then
+        repeat
+          if (sr.Name <> '.') and (sr.Name <> '..') and FPS_ISDIR(sr.Attr) then
+            Names.Add(sr.Name);
+        until FindNextEx(sr) <> 0;
+    finally
+      FindCloseEx(sr);
+    end;
+
+    Names.Sort;
+
+    lsCommands.Items.BeginUpdate;
+    try
+      lsCommands.Items.Clear;
+      FDropdownValues.Clear;
+      // directories whose name begins with the typed text come first...
+      for I := 0 to Names.Count - 1 do
+      begin
+        AName := UTF8LowerCase(Names[I]);
+        if (Typed = EmptyStr) or (Pos(Typed, AName) = 1) then
+          AddDirectory(I);
+      end;
+      // ...then matches elsewhere in the name
+      if Typed <> EmptyStr then
+        for I := 0 to Names.Count - 1 do
+        begin
+          AName := UTF8LowerCase(Names[I]);
+          if Pos(Typed, AName) > 1 then
+            AddDirectory(I);
+        end;
+    finally
+      lsCommands.Items.EndUpdate;
+    end;
+  finally
+    Names.Free;
   end;
 
   ShowDropdown;
@@ -1369,12 +1483,12 @@ begin
   Path := ResolveGoToPath(S);
 
   // Take the highlighted dropdown suggestion instead, unless the typed text
-  // already resolves by itself (exact alias or existing path). An entry
-  // explicitly picked with the arrow keys or the mouse always wins.
+  // already resolves to an existing directory by itself. An entry explicitly
+  // picked with the arrow keys or the mouse always wins.
   if lsCommands.Visible and (lsCommands.ItemIndex >= 0) and
      (lsCommands.ItemIndex < FDropdownValues.Count) then
   begin
-    if FDropdownPicked or ((Path = S) and not mbDirectoryExists(S)) then
+    if FDropdownPicked or not mbDirectoryExists(Path) then
       Path := FDropdownValues[lsCommands.ItemIndex];
   end;
 
