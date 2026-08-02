@@ -259,7 +259,11 @@ uses
   uFileSourceOperationTypes, uOSUtils, DCStrUtils, uDCUtils, uExceptions,
   uGlobs, uPixMapManager, uFileSourceProperty,
   uFileSourceCalcStatisticsOperation,
-  uFileSourceOperationOptions;
+  uFileSourceOperationOptions
+{$IFDEF MSWINDOWS}
+  , uShellFileSource
+{$ENDIF}
+  ;
 
 {$IFDEF timeFileView}
 procedure filelistPrintTime(const AMessage: String); inline;
@@ -504,7 +508,12 @@ begin
       if (not HaveUpDir) and
          ((not FFileSource.IsPathAtRoot(FCurrentPath)) or
           // Add '..' to go to higher level file source, if there is more than one.
-          ((FFileSourceIndex > 0) and not (fspNoneParent in FFileSource.Properties))) then
+          ((FFileSourceIndex > 0) and not (fspNoneParent in FFileSource.Properties))
+{$IFDEF MSWINDOWS}
+          // A drive root's parent is the shell "This PC" folder.
+          or TShellFileSource.HasComputerParent(FFileSource, FCurrentPath)
+{$ENDIF}
+         ) then
       begin
         AFile := FFileSource.CreateFileObject(FCurrentPath);
         AFile.Name := '..';

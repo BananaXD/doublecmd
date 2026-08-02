@@ -43,6 +43,16 @@ type
 
     class function RootName: String;
     class procedure ListDrives(DrivesList: TDrivesList; UpperCase: Boolean);
+    {en
+       Shell display name of a drive as it appears inside "This PC"
+       (e.g. "Local Disk (C:)" for "C:\"); empty string on failure.
+    }
+    class function DriveDisplayName(const Path: String): String;
+    {en
+       @true when going up from APath should open this file source:
+       APath is a drive root ("X:\") of a plain file system source.
+    }
+    class function HasComputerParent(aFileSource: IFileSource; const APath: String): Boolean;
 
     function CreateFolder(AParent: IShellFolder2; const Name: String): HRESULT;
     function FindFolder(const Path: String; out AValue: IShellFolder2): HRESULT;
@@ -80,6 +90,7 @@ implementation
 
 uses
   ActiveX, ComObj,DCConvertEncoding,  uShellFolder, uShellListOperation,
+  uFileSystemFileSource,
   uShellCopyOperation, uShellFileOperation, uShellCreateDirectoryOperation,
   uShellExecuteOperation, uShellSetFilePropertyOperation, uShellFileSourceUtil,
   uShellDeleteOperation, uShellMoveOperation, UShellCalcStatisticsOperation,
@@ -210,6 +221,55 @@ begin
   finally
     CoTaskMemFree(DrivesPIDL);
   end;
+end;
+
+class function TShellFileSource.DriveDisplayName(const Path: String): String;
+var
+  ARoot: String;
+  PIDL: PItemIDList;
+  NumIDs: LongWord = 0;
+  AFolder: IShellFolder2;
+  EnumIDList: IEnumIDList;
+  DrivesPIDL: PItemIDList;
+  DesktopFolder: IShellFolder;
+begin
+  // Enumerate the Computer folder and match the drive by its parsing name
+  // instead of SHParseDisplayName(Path): parsing a hung network drive's path
+  // by name can block until the SMB timeout, enumeration is served locally.
+  Result:= EmptyStr;
+  ARoot:= ExcludeTrailingBackslash(Path);
+  try
+    OleCheckUTF8(SHGetDesktopFolder(DesktopFolder));
+    OleCheckUTF8(SHGetFolderLocation(0, CSIDL_DRIVES, 0, 0, {%H-}DrivesPIDL));
+    try
+      OleCheckUTF8(DesktopFolder.BindToObject(DrivesPIDL, nil, IID_IShellFolder2, Pointer(AFolder)));
+      OleCheckUTF8(AFolder.EnumObjects(0, SHCONTF_FOLDERS or SHCONTF_STORAGE, EnumIDList));
+      while (Result = EmptyStr) and (EnumIDList.Next(1, PIDL, NumIDs) = S_OK) do
+      try
+        if SameText(ExcludeTrailingBackslash(
+             GetDisplayName(AFolder, PIDL, SHGDN_INFOLDER or SHGDN_FORPARSING)), ARoot) then
+        begin
+          Result:= GetDisplayNameEx(AFolder, PIDL, SHGDN_INFOLDER);
+        end;
+      finally
+        CoTaskMemFree(PIDL);
+      end;
+    finally
+      CoTaskMemFree(DrivesPIDL);
+    end;
+  except
+    Result:= EmptyStr;
+  end;
+end;
+
+class function TShellFileSource.HasComputerParent(aFileSource: IFileSource;
+  const APath: String): Boolean;
+begin
+  Result:= (Win32MajorVersion > 5) and
+           (Length(APath) = 3) and (APath[2] = ':') and (APath[3] = PathDelim) and
+           (UpCase(APath[1]) in ['A'..'Z']) and
+           aFileSource.IsClass(TFileSystemFileSource) and
+           not (fspNoneParent in aFileSource.Properties);
 end;
 
 function TShellFileSource.FindObject(const AObject: String; out

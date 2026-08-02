@@ -177,6 +177,9 @@ uses
 {$IF DEFINED(LCLQT) or DEFINED(LCLQT5) or DEFINED(LCLQT6)}
   , uFileView
 {$ENDIF}
+{$IFDEF MSWINDOWS}
+  , uShellFileSource
+{$ENDIF}
   ;
 
 const
@@ -1246,6 +1249,17 @@ begin
         if Pos(Typed, AName) > 1 then
           AddAlias(I);
       end;
+{$IFDEF MSWINDOWS}
+    // built-in "This PC" alias (unless the user defined their own)
+    if (Win32MajorVersion > 5) and (gPathAliases.IndexOfName('thispc') < 0) and
+       ((Typed = EmptyStr) or (Pos(Typed, 'thispc') = 1)) then
+    begin
+      lsCommands.Items.Add(PATH_MODE_PREFIX + 'thispc' +
+                           '   -   ' + TShellFileSource.RootName);
+      FDropdownValues.Add(PathDelim + PathDelim + PathDelim +
+                          TShellFileSource.RootName + PathDelim);
+    end;
+{$ENDIF}
   finally
     lsCommands.Items.EndUpdate;
   end;
@@ -1569,6 +1583,19 @@ begin
   end;
 
   Alias := gPathAliases.Values[First];
+
+{$IFDEF MSWINDOWS}
+  // "/thispc" - built-in alias for the shell "This PC" folder;
+  // a user-defined alias of the same name wins
+  if (Alias = EmptyStr) and (Win32MajorVersion > 5) and SameText(First, 'thispc') then
+  begin
+    Result := PathDelim + PathDelim + PathDelim + TShellFileSource.RootName + PathDelim;
+    if Rest <> EmptyStr then
+      Result := Result + NormalizePathDelimiters(Copy(Rest, 2, MaxInt));
+    Exit;
+  end;
+{$ENDIF}
+
   if Alias <> EmptyStr then
     Result := Alias + Rest;
 end;

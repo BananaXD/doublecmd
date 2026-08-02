@@ -623,7 +623,11 @@ uses
   uDCUtils, uDebug, uLng, uShowMsg, uFileSystemFileSource, uFileSourceUtil,
   uFileViewNotebook, uSearchTemplate, uKeyboard, uFileFunctions,
   fMain, uSearchResultFileSource, uFileSourceProperty, uVfsModule, uFileViewWithPanels,
-  LCLVersion;
+  LCLVersion
+{$IFDEF MSWINDOWS}
+  , uShellFileSource
+{$ENDIF}
+  ;
 
 const
   MinimumReloadInterval  = 1000; // 1 second
@@ -3001,6 +3005,9 @@ procedure TFileView.ChangePathToParent(AllowChangingFileSource: Boolean);
 var
   PreviousSubDirectory,
   sUpLevel: String;
+{$IFDEF MSWINDOWS}
+  AComputer: IFileSource;
+{$ENDIF}
 begin
   AllowChangingFileSource:= AllowChangingFileSource and
                             not (fspNoneParent in FileSource.Properties);
@@ -3015,7 +3022,20 @@ begin
       // in this way, for example, in SearchResults, after clicking "..",
       // we can navigation by cm_ViewHistoryPrev/cm_ViewHistoryNext.
       GoToPrevFileSourceHistory
-    end;
+    end
+{$IFDEF MSWINDOWS}
+    // A drive root's parent is the shell "This PC" folder (Explorer/DOpus style).
+    else if AllowChangingFileSource and
+            TShellFileSource.HasComputerParent(FileSource, CurrentPath) then
+    begin
+      PreviousSubDirectory := TShellFileSource.DriveDisplayName(CurrentPath);
+      AComputer := TShellFileSource.Create;
+      AddFileSource(AComputer, AComputer.GetRootDir);
+      if PreviousSubDirectory <> EmptyStr then
+        SetActiveFile(PreviousSubDirectory);
+    end
+{$ENDIF}
+    ;
   end
   else
   begin
