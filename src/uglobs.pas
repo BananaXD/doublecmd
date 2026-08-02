@@ -173,7 +173,7 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 77;
+  hkVersion = 78;
   // 77 - In "Main" context, "Ctrl+B"/"Ctrl+Alt+F" for "cm_FlatView" now pass
   //      "dirs=off"/"dirs=on" (flat view without/with directory entries).
   // 76 - In "Main" context, add shortcut "Ctrl+Alt+F" for "cm_FlatView".
@@ -1396,6 +1396,15 @@ begin
       AddIfNotExists(['Cmd+='],[],'cm_MainFontZoomIn');
       AddIfNotExists(['Cmd+-'],[],'cm_MainFontZoomOut');
       {$ENDIF}
+    end;
+
+  HMControl := HMForm.Controls.FindOrCreate('Quick Search');
+  with HMControl.Hotkeys do
+    begin
+      // jump between find-as-you-type matches while the bar has focus
+      // (overrides the form-level F3 = cm_View while typing)
+      AddIfNotExists(['F3','','direction=next','',
+                      'Shift+F3','','direction=previous',''], 'cm_QuickSearch');
     end;
 
   HMForm := HotMan.Forms.FindOrCreate('Viewer');

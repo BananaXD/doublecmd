@@ -188,6 +188,9 @@ const
 
   "filter"           - set filtering (on/off/toggle)
   "search"           - set searching (on/off/cycle)
+  "direction"        - jump to another match (first/last/next/previous);
+                       given alone it only moves between matches, without
+                       changing the current search/filter mode
   "matchbeginning"   - set match beginning option (on/off/toggle)
   "matchending"      - set match ending option (on/off/toggle)
   "casesensitive"    - set case sensitive searching (on/off/toggle)
@@ -216,6 +219,7 @@ const
   FIRST_VALUE = 'first';
   LAST_VALUE = 'last';
   NEXT_VALUE = 'next';
+  PREVIOUS_VALUE = 'previous';
 
   // bar mode prefixes (Directory Opus style find-as-you-type field)
   CMD_MODE_PREFIX    = '>';  // execute internal command
@@ -410,6 +414,7 @@ var
   Value: String;
   bWeGotMainParam: boolean = False;
   bLegacyBehavior: boolean = False;
+  bDirectionRequested: boolean = False;
 begin
   BeginUpdate;
   try
@@ -462,6 +467,8 @@ begin
         if Value = FIRST_VALUE then Options.Direction:=qsdFirst;
         if Value = LAST_VALUE then Options.Direction:=qsdLast;
         if Value = NEXT_VALUE then Options.Direction:=qsdNext;
+        if Value = PREVIOUS_VALUE then Options.Direction:=qsdPrevious;
+        bDirectionRequested := True;
       end
       else if GetParamValue(Param, PARAMETER_MATCH_BEGINNING, Value) then
       begin
@@ -512,6 +519,16 @@ begin
         edtSearch.Text := Value;
         edtSearch.SelectAll;
       end;
+    end;
+
+    // A bare direction request (default F3/Shift+F3 while the bar is open)
+    // only jumps to another match; it must not switch between search and
+    // filter mode nor close the bar.
+    if bDirectionRequested and not bWeGotMainParam then
+    begin
+      if (Mode = qsSearch) and (Options.Direction <> qsdNone) then
+        DoOnChangeSearch; // deferred until EndUpdate, Direction still set
+      Exit;
     end;
 
     CheckFilesOrDirectoriesDown;
