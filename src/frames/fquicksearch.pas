@@ -167,7 +167,7 @@ implementation
 
 uses
   Math, Graphics, LazUTF8, LCLIntf,
-  DCOSUtils, uFindEx,
+  DCOSUtils, DCStrUtils, uFindEx,
   uKeyboard,
   uGlobs,
   uLng,
@@ -1264,9 +1264,14 @@ var
 {$ENDIF}
 
   procedure AddDirectory(Index: Integer);
+  var
+    Suggestion: String;
   begin
-    lsCommands.Items.Add(BaseDir + Names[Index]);
-    FDropdownValues.Add(BaseDir + Names[Index]);
+    // an alias value and the typed text may use different slash styles;
+    // show and store one native form (no-op on Unix)
+    Suggestion := NormalizePathDelimiters(BaseDir + Names[Index]);
+    lsCommands.Items.Add(Suggestion);
+    FDropdownValues.Add(Suggestion);
   end;
 
 begin
@@ -1469,7 +1474,7 @@ begin
       begin
         if AValue = EmptyStr then
           AValue := frmMain.ActiveFrame.CurrentPath;
-        AValue := ExcludeTrailingPathDelimiter(AValue);
+        AValue := ExcludeTrailingPathDelimiter(NormalizePathDelimiters(AValue));
         if AName = EmptyStr then
           AName := ExtractFileName(AValue);
         if (AName <> EmptyStr) and (AValue <> EmptyStr) then

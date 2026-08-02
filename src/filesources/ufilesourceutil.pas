@@ -371,6 +371,9 @@ end;
 
 procedure SetFileSystemPath(aFileView: TFileView; aPath: String);
 begin
+  // Windows shell APIs (e.g. the native IContextMenu) reject mixed or
+  // forward-slash paths, so force the native delimiter (no-op on Unix)
+  aPath := NormalizePathDelimiters(aPath);
   with aFileView do
   begin
     if TFileSystemFileSource.ClassNameIs(FileSource.ClassName) then
