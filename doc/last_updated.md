@@ -1,4 +1,4 @@
-# Last Updated — 2026-07-29
+# Last Updated — 2026-07-30
 
 Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspired-usability.md`.
 
@@ -152,6 +152,83 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
     - Not done (user deferred): live recursive FS watching on Windows,
       path-aware quick filter. Flat state is not session-persisted (upstream
       behavior, unchanged).
+
+15. **"This PC" drives view, DOpus-style** (2026-07-30, Windows-only) — going up
+    from a drive root and a `/thispc` alias. DC already shipped a full shell
+    "Computer" file source (`TShellFileSource`, `src/filesources/shellfolder/`,
+    Vista+, registered in `uosforms.pas`; lists drives with capacity, drive
+    double-click returns to the filesystem via `fseorSymLink`); this wires it
+    into navigation:
+    - New helpers on `TShellFileSource` (`ushellfilesource.pas`):
+      `HasComputerParent(fs, path)` — true for a plain-filesystem drive root
+      (`X:\`, Vista+, not `fspNoneParent`); `DriveDisplayName(path)` — the
+      drive's shell name inside This PC (e.g. "Local Disk (C:)") via
+      `SHParseDisplayName` + `SHBindToParent` + `GetDisplayNameEx(SHGDN_INFOLDER)`
+      — the *same* call `TShellListOperation.ListDrives` uses for `Name`, so
+      cursor positioning matches exactly.
+    - `TFileView.ChangePathToParent` (`ufileview.pas`): at a drive root with no
+      higher file source, pushes a `TShellFileSource` at its root and
+      `SetActiveFile(DriveDisplayName(...))` (async-safe via
+      `RequestedActiveFile`). Backspace, `cm_ChangeDirToParent`, and `..` all
+      funnel through here; Backspace at This PC root pops back via the existing
+      `GoToPrevFileSourceHistory` branch.
+    - `TFileListBuilder` (`ufileviewworker.pas`): the `..` row is now also added
+      at drive roots (`HasComputerParent` OR-ed into the up-dir condition), so
+      mouse users can click up from `C:\`.
+    - `/thispc` built-in alias (`fquicksearch.pas`): `ResolveGoToPath` maps it to
+      `\\\<RootName>\` (localized shell name, computed at runtime — never
+      hard-coded "This PC"); subpaths `/thispc/...` are delimiter-normalized and
+      appended; a user-defined `thispc` alias wins. Shown in the go-to dropdown
+      (`UpdateAliasList`) after user aliases, suppressed if the user defined
+      their own. Navigation needs no new code: `ChooseFileSource` already
+      dispatches `\\\...` through `gVfsModuleList` → `IsSupportedPath`.
+    - Grouping drives by SSD/HDD/network and free-space display (design phases
+      3–4) not done yet; candidate follow-up in `ushelllistoperation.pas`
+      (`SCID_FreeSpace`, seek-penalty IOCTL) — group *header rows* would need
+      new columns-view machinery.
+    - FIXED 2026-08-02: the listing took ~42 s *per problem drive* — of all
+      the shell calls the listing makes, only `GetDetails(SCID_Capacity)`
+      touches the network (measured per-property; enumeration, SFGAO
+      attributes, INFOLDER/FORPARSING names are all served locally even for
+      dead drives), and it blocks for the full SMB timeout. Two distinct
+      failure modes, needing different handling in
+      `TShellListOperation.ListDrives`:
+      1. *Disconnected* mapped drive ("Unavailable" in `net use`): detected
+         locally for free — `WNetGetConnectionW` ≠ `NO_ERROR` (MPR state
+         table; new `MappedDriveConnected` helper) — capacity is skipped
+         entirely, zero wait. Probing such a drive is what costs 42 s: it
+         triggers the redirector's auto-reconnect. GOTCHAS that broke two fix
+         attempts (verified with DCDebug timing + SendKeys-driven runs,
+         `--debug-log=`): (a) these drives report `GetDriveType =
+         DRIVE_NO_ROOT_PATH` (1), **not** `DRIVE_REMOTE` (const missing from
+         the FPC Windows unit, declared locally); (b) the item's
+         INFOLDER|FORPARSING name — `LinkTo` — is **"X:" with no backslash**
+         (length 2), so a `Length = 3` drive-root test never matched and
+         everything silently fell into the synchronous branch
+         (85 s total). Append a backslash before `GetDriveTypeW`.
+      2. *Connected-but-hung* drive (mapping says OK, host doesn't answer —
+         e.g. a sleeping VPN peer): can't be detected without probing, so
+         connected network drives are queried in parallel
+         `TDriveCapacityThread`s (plain `uOSUtils.GetDiskFreeSpace`, no COM →
+         no apartment issues) with a `CAPACITY_TIMEOUT` (1 s) deadline;
+         timed-out drives get `SizeProperty.IsValid := False` and the
+         abandoned thread self-frees via the `FDone`/`FRelease` handshake
+         copied from `TNetworkThread`. Worst case the listing shows in ~1 s
+         (Explorer avoids even that by filling sizes in asynchronously —
+         would need per-item property update plumbing in DC's list-op model).
+      A `GetConnectedRemoteNames` helper (WNetOpenEnum(RESOURCE_CONNECTED))
+      also classifies UNC-form items, and local drives keep the synchronous
+      shell query (measured 0 ms). Verified: 87.5 s → 2.2 s (with the 2 s
+      deadline; 1 s now) with two dead + one hung drive present; icons and
+      all other per-item shell calls (attributes, names) measured local/fast
+      even for dead drives.
+      `TShellFileSource.DriveDisplayName` was also rewritten to *enumerate*
+      the Computer folder and match by FORPARSING name instead of
+      `SHParseDisplayName(path)` — parsing a hung drive's path by name
+      blocked 82 s (it probes), enumeration is local.
+      Also of note: `\\name` (two backslashes) is *UNC*, handled by
+      `TWinNetFileSource` — typing `\\thispc` browses for a network host
+      named "thispc" and stalls; the alias forms are `/thispc` and `\thispc`.
 
 Build note: if FPC dies with a random internal `EListError` in unmodified units,
 run `./clean.sh && ./build.sh components` then rebuild — stale PPU state.
