@@ -33,6 +33,10 @@ uses
   Classes, SysUtils, Controls, LCLProc, LCLType, LCLIntf, Forms, ActnList,
   DCClassesUtf8, fgl, contnrs, DCXmlConfig, DCBasicTypes;
 
+const
+  {en Name of the hotkey control the quick search/filter bar registers itself as. }
+  HotkeyControlQuickSearch = 'Quick Search';
+
 type
   generic THMObjectInstance<InstanceClass> = class
     Instance: InstanceClass;
@@ -1278,7 +1282,9 @@ var
   var
     j: Integer;
     Sequence: TDynamicStringArray;
+    InTypingControl: Boolean;
   begin
+    InTypingControl := False;
     SetLength(Sequence, 1);
     Sequence[0] := TextShortcut;
     if Assigned(Control) then
@@ -1288,9 +1294,15 @@ var
         begin
           if Assigned(HMForm.Controls[j].Hotkeys.FindByBeginning(Sequence, False)) then
             Exit(True);
+          InTypingControl := (HMForm.Controls[j].Name = HotkeyControlQuickSearch);
           Break;
         end;
       end;
+    // While the quick search/filter bar has focus the user is typing text, so
+    // form-level bindings must not claim the key (e.g. Shift+E has to be typed,
+    // not executed). Only bindings on the bar itself (F3 etc.) still apply.
+    if InTypingControl then
+      Exit(False);
     Result := Assigned(HMForm.Hotkeys.FindByBeginning(Sequence, False));
   end;
 

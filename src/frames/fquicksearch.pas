@@ -170,6 +170,7 @@ uses
   DCOSUtils, DCStrUtils, uFindEx,
   uKeyboard,
   uGlobs,
+  uHotkeyManager,
   uLng,
   uSysFolders,
   uFormCommands,
@@ -304,7 +305,7 @@ begin
 
   FDropdownValues := TStringList.Create;
 
-  HotMan.Register(Self.edtSearch, 'Quick Search');
+  HotMan.Register(Self.edtSearch, HotkeyControlQuickSearch);
 end;
 
 destructor TfrmQuickSearch.Destroy;

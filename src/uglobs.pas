@@ -1398,7 +1398,7 @@ begin
       {$ENDIF}
     end;
 
-  HMControl := HMForm.Controls.FindOrCreate('Quick Search');
+  HMControl := HMForm.Controls.FindOrCreate(HotkeyControlQuickSearch);
   with HMControl.Hotkeys do
     begin
       // jump between find-as-you-type matches while the bar has focus
