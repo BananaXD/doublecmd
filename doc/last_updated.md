@@ -1,4 +1,4 @@
-# Last Updated — 2026-07-30
+# Last Updated — 2026-08-26
 
 Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspired-usability.md`.
 
@@ -229,6 +229,55 @@ Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspir
       Also of note: `\\name` (two backslashes) is *UNC*, handled by
       `TWinNetFileSource` — typing `\\thispc` browses for a network host
       named "thispc" and stalls; the alias forms are `/thispc` and `\thispc`.
+
+16. **Startup freeze with dead network drives fixed** (2026-08-26, Windows-only
+    helper, shared-code call sites) — the app froze invisibly for minutes at
+    launch whenever the NAS was asleep. Root cause: restoring saved tabs
+    (`FormCreate → LoadTabs → TFileView.LoadConfiguration`, ufileview.pas)
+    calls `GetDeepestExistingPath` on each tab's saved path **synchronously on
+    the main thread, before the main window is shown** — and that walks the
+    path upward with one blocking `mbDirectoryExists` (`GetFileAttributesW`)
+    per segment. On a dead host each probe blocks for the full SMB
+    auto-reconnect timeout (~20–42 s), × path segments × 16 tabs. Diagnosed
+    live with gdb stack sampling; reproduced deterministically by pointing the
+    saved tabs at a blackhole IP (`--config-dir` on a copied config): window
+    hidden+hung for 36 s, hang bursts to 67 s, with ONE dead host.
+    - New `IsNetworkBackedPath(Path)` in `uOSUtils`: true for UNC paths and
+      drive letters that are `DRIVE_REMOTE` or a (possibly disconnected)
+      mapped drive per `WNetGetConnectionW` — answered from local MPR state
+      only, never touches the network (same lesson as item 15: *any* probe of
+      a dead path triggers the redirector's reconnect).
+    - Gated all main-thread `GetDeepestExistingPath` walks with it: tab
+      restore (`ufileview.pas` LoadConfiguration), legacy tab config + command
+      line paths (`fmain.pas` LoadTabsXml/LoadTabsCommandLine), and the
+      watcher's `fswSelfDeleted` fallback (`ufileview.pas`) which had the same
+      freeze when a NAS died mid-session. Network paths are restored as
+      saved; the asynchronous listing copes (observed: dead tab falls back to
+      its last reachable history path, everything else lists normally).
+    - Verified with the blackhole-IP config: window visible in 1.0 s, zero
+      hung intervals over 75 s (was: first paint 36 s). No test seam exists
+      for this (startup + real SMB timeouts), so the probe script pattern is
+      the regression check: watch window visibility/`IsHungAppWindow` after
+      launch with a poisoned `--config-dir`.
+    - Still synchronous by design (fast, local-state only): the
+      `TFileSystemFileSource.GetParentDir` deepest-path walk — navigating up
+      *from* a dead network dir can still probe; candidate follow-up.
+
+17. **Letter hotkeys no longer steal keystrokes from edit controls**
+    (2026-08-27) — user hotkey `Shift+E → cm_SortByDate` fired during inline
+    rename (F2), flipping the sort instead of typing a capital E. Same family
+    as the quick-search fix in `THotKeyManager.KeyDownHandler`
+    (uhotkeymanager.pas): the quick-search bar was special-cased as a "typing
+    control", but the inline rename editor (and the command line) are not
+    registered with the hotkey manager at all, so `HasExplicitHotkey` matched
+    the form-level binding and claimed the key. Generalized: a focused
+    `TCustomEdit`/`TCustomComboBox` descendant that is *not* registered with
+    the hotkey manager is treated as a typing control — form-level bindings
+    on typeable keys (letters/digits, incl. Shift+) don't claim while it has
+    focus; bindings on registered controls (Files Panel, Quick Search) are
+    unaffected. Verified with a SendKeys harness (F2 → Shift+E → Enter on a
+    scratch file): before, file unchanged + sort flipped; after, file renamed
+    to `E`.
 
 Build note: if FPC dies with a random internal `EListError` in unmodified units,
 run `./clean.sh && ./build.sh components` then rebuild — stale PPU state.

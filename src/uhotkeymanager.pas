@@ -232,7 +232,7 @@ type
 implementation
 
 uses
-  Laz2_XMLRead, uKeyboard, uGlobs, uDebug, uDCVersion, uFormCommands,
+  Laz2_XMLRead, StdCtrls, uKeyboard, uGlobs, uDebug, uDCVersion, uFormCommands,
   DCOSUtils, DCStrUtils;
 
 const
@@ -1282,25 +1282,36 @@ var
   var
     j: Integer;
     Sequence: TDynamicStringArray;
+    Registered: Boolean;
     InTypingControl: Boolean;
   begin
+    Registered := False;
     InTypingControl := False;
     SetLength(Sequence, 1);
     Sequence[0] := TextShortcut;
     if Assigned(Control) then
+    begin
       for j := 0 to HMForm.Controls.Count - 1 do
       begin
         if Assigned(HMForm.Controls[j].Find(Control)) then
         begin
+          Registered := True;
           if Assigned(HMForm.Controls[j].Hotkeys.FindByBeginning(Sequence, False)) then
             Exit(True);
           InTypingControl := (HMForm.Controls[j].Name = HotkeyControlQuickSearch);
           Break;
         end;
       end;
-    // While the quick search/filter bar has focus the user is typing text, so
-    // form-level bindings must not claim the key (e.g. Shift+E has to be typed,
-    // not executed). Only bindings on the bar itself (F3 etc.) still apply.
+      // A focused edit-type control not registered with the hotkey manager
+      // (inline rename editor, command line, path edit) also means the user
+      // is typing text there.
+      if (not Registered) and
+         ((Control is TCustomEdit) or (Control is TCustomComboBox)) then
+        InTypingControl := True;
+    end;
+    // While a typing control has focus the user is typing text, so form-level
+    // bindings must not claim the key (e.g. Shift+E has to be typed, not
+    // executed). Only bindings on the control itself (F3 etc.) still apply.
     if InTypingControl then
       Exit(False);
     Result := Assigned(HMForm.Hotkeys.FindByBeginning(Sequence, False));
