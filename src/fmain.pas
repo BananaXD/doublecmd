@@ -5328,7 +5328,10 @@ begin
         // Else try old configuration.
         else if AConfig.TryGetValue(TabNode, 'Path', sPath) then
         begin
-          sPath := GetDeepestExistingPath(sPath);
+          // Never probe a network path at startup - a dead host blocks the
+          // main thread for the full SMB timeout per path segment
+          if not IsNetworkBackedPath(sPath) then
+            sPath := GetDeepestExistingPath(sPath);
           if sPath <> EmptyStr then
           begin
             Page := ANoteBook.AddPage;
@@ -6387,7 +6390,10 @@ procedure TfrmMain.LoadTabsCommandLine(Params: TCommandLineParams);
     if Length(aPath) <> 0 then
     begin
       aPath:= ReplaceEnvVars(ReplaceTilde(aPath));
-      if not mbFileSystemEntryExists(aPath) then
+      // Never probe a network path at startup - a dead host blocks the
+      // main thread for the full SMB timeout per path segment
+      if (not IsNetworkBackedPath(aPath)) and
+         (not mbFileSystemEntryExists(aPath)) then
         aPath:= GetDeepestExistingPath(aPath);
       if Length(aPath) <> 0 then
       begin

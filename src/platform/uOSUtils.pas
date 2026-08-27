@@ -148,6 +148,14 @@ procedure DeleteTempFolderDeletableAtTheEnd;
 }
 function GetSfxExt: String;
 
+{en
+   True when accessing Path may touch the network (UNC path, or a path on a
+   remote or mapped drive). Answered from local state only - never blocks,
+   even when the host is unreachable. Use to guard synchronous filesystem
+   probes (each probe of a dead host blocks for the full SMB timeout).
+}
+function IsNetworkBackedPath(const Path: String): Boolean;
+
 function IsAvailable(Drive: PDrive; TryMount: Boolean = True) : Boolean;
 function GetShell : String;
 {en
@@ -699,6 +707,35 @@ end;
 {$ELSE}
 begin
   Result:= '.run';
+end;
+{$ENDIF}
+
+function IsNetworkBackedPath(const Path: String): Boolean;
+{$IF DEFINED(MSWINDOWS)}
+var
+  ALen: DWORD;
+  ADrive: UnicodeString;
+  ARemote: array[0..1023] of WideChar;
+begin
+  if Pos('\\', Path) = 1 then
+    Exit(True);
+  if (Length(Path) < 2) or (Path[2] <> ':') then
+    Exit(False);
+  ADrive:= CeUtf8ToUtf16(Copy(Path, 1, 2));
+  if GetDriveTypeW(PWideChar(ADrive + '\')) = DRIVE_REMOTE then
+    Exit(True);
+  // A disconnected mapped drive reports DRIVE_NO_ROOT_PATH, but the mapping
+  // itself is still in the local MPR state table
+  ALen:= Length(ARemote);
+  case WNetGetConnectionW(PWideChar(ADrive), ARemote, ALen) of
+    NO_ERROR, ERROR_MORE_DATA: Result:= True;
+  else
+    Result:= False;
+  end;
+end;
+{$ELSE}
+begin
+  Result:= False;
 end;
 {$ENDIF}
 

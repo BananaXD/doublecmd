@@ -2743,7 +2743,12 @@ begin
         FHistory.Add(aFileSource, APage.LockPath);
       end;
     end;
-    if TFileSystemFileSource.ClassNameIs(aFileSource.ClassName) then
+    // Restoring a network path must not probe it: with the host unreachable
+    // every probe blocks the main thread for the full SMB timeout, per path
+    // segment, per tab - before the main window is shown. Restore the path
+    // as saved; the asynchronous listing copes with an unreachable path.
+    if TFileSystemFileSource.ClassNameIs(aFileSource.ClassName) and
+       (not IsNetworkBackedPath(FHistory.CurrentPath)) then
     begin
       // Go to upper directory if current doesn't exist
       sPath := GetDeepestExistingPath(FHistory.CurrentPath);
@@ -3506,7 +3511,10 @@ begin
     fswFileRenamed:
       Self.RenameFile(EventData.NewFileName, EventData.FileName, EventData.Path, NewFilesPosition, UpdatedFilesPosition);
     fswSelfDeleted:
-      CurrentPath:= GetDeepestExistingPath(CurrentPath);
+      // Don't probe a network path from the main thread - if the host went
+      // away, each probe blocks for the full SMB timeout per path segment
+      if not IsNetworkBackedPath(CurrentPath) then
+        CurrentPath:= GetDeepestExistingPath(CurrentPath);
     else
       Reload();
   end;
