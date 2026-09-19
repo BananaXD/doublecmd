@@ -75,7 +75,7 @@ NOT yet tested on the real target `\\beyondinsane\B\Aardvark\books5`
 
 ## Open / Next
 
-1. Test on the SMB share `\beyondinsaneBAardvarkbooks5`.
+1. Test on the SMB share `\\beyondinsane\B\Aardvark\books5`.
 2. Sort-order change during a long load is not applied to the final list
    (pre-existing, now more visible). Fix: re-sort in `SetFileList` if
    `SortingForSorter` differs from the worker's captured sortings.
