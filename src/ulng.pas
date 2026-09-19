@@ -202,6 +202,8 @@ resourcestring
   rsMsgTargetDir = 'Target path:';
   rsMsgURL = 'URL:';
   rsMsgLoadingFileList = 'Loading file list...';
+  rsMsgLoadingFileListCount = 'Loading file list... %s files';
+  rsMsgStillLoadingFileList = '(still loading...)';
   rsMsgNoFiles = 'No files';
   rsMsgErrSetAttribute = 'Can not set attributes for "%s"';
   rsMsgErrSetDateTime = 'Can not set date/time for "%s"';

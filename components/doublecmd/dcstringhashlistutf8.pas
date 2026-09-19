@@ -42,8 +42,12 @@ type
   private
     FList: PStringHashItemList;
     FCount: Integer;
+    FCapacity: Integer;
+    FBulk: Boolean;
     fNormalize: Boolean;
     fCaseSensitive: Boolean;
+    procedure EnsureCapacity(AMinCount: Integer);
+    procedure SortByHash;
     function BinarySearch(HashValue: Cardinal): Integer;
     function CompareString(const Low, Key: String): Boolean;
     function CompareValue(const Value1, Value2: Cardinal): Integer;
@@ -68,6 +72,13 @@ type
     function Remove(const S: String): Integer;
     function Remove(const S: String; Data: Pointer): Integer;
     procedure FindBoundaries(StartFrom: Integer; out First, Last: Integer);
+    {en
+       Between BeginBulk and EndBulk, Add appends in O(1) instead of keeping
+       the list sorted (O(n) per insert). EndBulk sorts once. Find/Remove
+       must not be called in between. Use when filling with many items.
+    }
+    procedure BeginBulk(ExpectedCount: Integer = 0);
+    procedure EndBulk;
     property Normalize: Boolean read fNormalize write SetNormalize;
     property CaseSensitive: Boolean read fCaseSensitive write SetCaseSensitive;
     property Count: Integer read FCount;
@@ -109,6 +120,15 @@ begin
   Item^.HashValue := Val;
   Item^.Key := S;
   Item^.Data := ItemData;
+  if FBulk then
+  begin
+    // Append; EndBulk restores the sort order.
+    EnsureCapacity(FCount + 1);
+    FList[FCount] := Item;
+    Result := FCount;
+    Inc(FCount);
+    Exit;
+  end;
   if FCount > 0 then
   begin
     First:=0;
@@ -168,6 +188,7 @@ begin
     FList:=nil;
   end;
   fCount:= 0;
+  FCapacity:= 0;
 end;
 
 procedure TStringHashListUtf8.Remove(Index: Integer);
@@ -355,9 +376,73 @@ begin
   {$POP}
 end;
 
+procedure TStringHashListUtf8.EnsureCapacity(AMinCount: Integer);
+begin
+  if AMinCount <= FCapacity then Exit;
+  if FCapacity < 16 then
+    FCapacity := 16;
+  while FCapacity < AMinCount do
+    FCapacity := FCapacity * 2;
+  ReallocMem(FList, FCapacity * SizeOf(PStringHashItem));
+end;
+
+procedure TStringHashListUtf8.SortByHash;
+
+  procedure QuickSort(L, R: Integer);
+  var
+    I, J: Integer;
+    P: Cardinal;
+    T: PStringHashItem;
+  begin
+    while L < R do
+    begin
+      I := L; J := R;
+      P := FList[(L + R) shr 1]^.HashValue;
+      repeat
+        while FList[I]^.HashValue < P do Inc(I);
+        while FList[J]^.HashValue > P do Dec(J);
+        if I <= J then
+        begin
+          T := FList[I]; FList[I] := FList[J]; FList[J] := T;
+          Inc(I); Dec(J);
+        end;
+      until I > J;
+      // Recurse into the smaller half, loop on the larger one.
+      if (J - L) < (R - I) then
+      begin
+        if L < J then QuickSort(L, J);
+        L := I;
+      end
+      else
+      begin
+        if I < R then QuickSort(I, R);
+        R := J;
+      end;
+    end;
+  end;
+
+begin
+  if FCount > 1 then
+    QuickSort(0, FCount - 1);
+end;
+
+procedure TStringHashListUtf8.BeginBulk(ExpectedCount: Integer);
+begin
+  FBulk := True;
+  if ExpectedCount > 0 then
+    EnsureCapacity(FCount + ExpectedCount);
+end;
+
+procedure TStringHashListUtf8.EndBulk;
+begin
+  if not FBulk then Exit;
+  FBulk := False;
+  SortByHash;
+end;
+
 procedure TStringHashListUtf8.Insert(Index: Integer; Item: PStringHashItem);
 begin
-  ReallocMem(FList, (fCount +1) * SizeOf(PStringHashItem));
+  EnsureCapacity(fCount + 1);
   if Index > fCount then Index:= fCount;
   if Index < 0 then Index:= 0;
   if Index < FCount then

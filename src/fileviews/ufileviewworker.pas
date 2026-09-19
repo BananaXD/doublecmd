@@ -5,7 +5,7 @@ unit uFileViewWorker;
 interface
 
 uses
-  Classes, SysUtils, contnrs, syncobjs, DCStringHashListUtf8,
+  Classes, SysUtils, contnrs, syncobjs, DCStringHashListUtf8, uPointerSet,
   uDisplayFile, uFile, uFileSource, uFileSorting, uFileProperty,
   DCBasicTypes,
   uFileSourceOperation,
@@ -71,11 +71,22 @@ type
     property UserData: TFPList read FUserData;
   end;
 
+  {en
+     Hands the built lists to the file view. NewHashedFiles/NewHashedNames are
+     the lookup tables for NewAllDisplayFiles, prebuilt on the worker thread
+     (may be nil, the view then builds them itself). The view takes what it
+     wants (setting the var to nil) and may put the lists it no longer needs
+     into the same vars - the worker frees whatever is left, off the GUI thread.
+  }
   TSetFileListMethod = procedure (var NewAllDisplayFiles: TDisplayFiles;
-                                  var NewFilteredDisplayFiles: TDisplayFiles) of object;
+                                  var NewFilteredDisplayFiles: TDisplayFiles;
+                                  var NewHashedFiles: TPointerSet;
+                                  var NewHashedNames: TStringHashListUtf8) of object;
   TUpdateFileMethod = procedure (const UpdatedFile: TDisplayFile;
                                  const UserData: Pointer) of object;
   TAbortFileMethod = procedure (AStart: Integer; AList: TFPList) of object;
+  // Number of files listed so far, while the list is still being loaded.
+  TLoadingProgressMethod = procedure (ACount: Integer) of object;
 
   { TFileListBuilder }
 
@@ -87,6 +98,22 @@ type
     FSetFileListMethod: TSetFileListMethod;
     FListOperation: TFileSourceListOperation;
     FListOperationLock: TCriticalSection;
+
+    // Progressive listing: partial lists are pushed to the view while the
+    // list operation is still running (nil = disabled).
+    FPartialFileListMethod: TSetFileListMethod;
+    FLoadingProgressMethod: TLoadingProgressMethod;
+    FPartialAllDisplayFiles: TDisplayFiles;
+    FPartialFilteredDisplayFiles: TDisplayFiles;
+    FLastPartialCount: Integer;
+    FProgressCount: Integer;
+    FLastPublishTick: QWord;     // when the list was last handed to the view
+    FPerFileCostUs: Double;      // measured cost of building one display file (microseconds)
+    // Lookup tables built here so the GUI thread doesn't have to.
+    FHashedFiles: TPointerSet;
+    FHashedNames: TStringHashListUtf8;
+    FPartialHashedFiles: TPointerSet;
+    FPartialHashedNames: TStringHashListUtf8;
 
     // Data captured from the file view before start.
     FFileSource: IFileSource;
@@ -105,6 +132,12 @@ type
        It is called from GUI thread.
     }
     procedure DoSetFileList;
+
+    procedure ListOperationProgress(Sender: TObject);
+    procedure DoSetPartialFileList;
+    procedure DoLoadingProgress;
+    procedure AddUpDirIfNeeded(AFiles: TFiles);
+    procedure RetrieveSortingProperties(AFiles: TFiles);
 
     class function InternalMatchesFilter(const fs: IFileSource; aFile: TFile;
                                          const aFileFilter: String;
@@ -136,7 +169,9 @@ type
                        AVariantProperties: TDynamicStringArray;
                        ASetFileListMethod: TSetFileListMethod;
                        var ExistingDisplayFiles: TDisplayFiles;
-                       var ExistingDisplayFilesHashed: TStringHashListUtf8); reintroduce;
+                       var ExistingDisplayFilesHashed: TStringHashListUtf8;
+                       APartialFileListMethod: TSetFileListMethod = nil;
+                       ALoadingProgressMethod: TLoadingProgressMethod = nil); reintroduce;
     destructor Destroy; override;
     procedure Abort; override;
 
@@ -172,7 +207,24 @@ type
                                  aFile: TFile;
                                  aFileFilter: String;
                                  const aFilterOptions: TQuickSearchOptions): Boolean;
+
+    {en
+       Builds the file view's lookup tables for aDisplayFiles: a pointer set
+       (is this display file still valid?) and a name -> display file map.
+       Pure data work; may run on any thread.
+    }
+    class procedure BuildFileHashes(aDisplayFiles: TDisplayFiles;
+                                    AFlatView: Boolean;
+                                    out AHashedFiles: TPointerSet;
+                                    out AHashedNames: TStringHashListUtf8);
   end;
+
+  {en
+     Key under which a file is stored in the file view's name hash.
+  }
+  function FileHashKey(const FileName, APath: String; AFlatView: Boolean): String;
+
+type
 
   { TFilePropertiesRetriever }
 
@@ -399,9 +451,14 @@ constructor TFileListBuilder.Create(AFileSource: IFileSource;
   AVariantProperties: TDynamicStringArray;
   ASetFileListMethod: TSetFileListMethod;
   var ExistingDisplayFiles: TDisplayFiles;
-  var ExistingDisplayFilesHashed: TStringHashListUtf8);
+  var ExistingDisplayFilesHashed: TStringHashListUtf8;
+  APartialFileListMethod: TSetFileListMethod;
+  ALoadingProgressMethod: TLoadingProgressMethod);
 begin
   inherited Create(AThread);
+
+  FPartialFileListMethod := APartialFileListMethod;
+  FLoadingProgressMethod := ALoadingProgressMethod;
 
   FAllDisplayFiles            := ExistingDisplayFiles;
   ExistingDisplayFiles        := nil;
@@ -432,6 +489,12 @@ begin
   FExistingDisplayFilesHashed.Free;
   FFilteredDisplayFiles.Free;
   FAllDisplayFiles.Free;
+  FPartialFilteredDisplayFiles.Free;
+  FPartialAllDisplayFiles.Free;
+  FHashedFiles.Free;
+  FHashedNames.Free;
+  FPartialHashedFiles.Free;
+  FPartialHashedNames.Free;
 end;
 
 procedure TFileListBuilder.Abort;
@@ -447,11 +510,214 @@ begin
   end;
 end;
 
-procedure TFileListBuilder.Execute;
+function FileHashKey(const FileName, APath: String; AFlatView: Boolean): String;
+begin
+  if AFlatView then
+    Result := ExcludeTrailingPathDelimiter(IncludeTrailingPathDelimiter(APath) + FileName)
+  else
+    Result := FileName;
+end;
+
+class procedure TFileListBuilder.BuildFileHashes(aDisplayFiles: TDisplayFiles;
+  AFlatView: Boolean; out AHashedFiles: TPointerSet;
+  out AHashedNames: TStringHashListUtf8);
+var
+  i, Count: Integer;
+  AFile: TFile;
+begin
+  if Assigned(aDisplayFiles) then
+    Count := aDisplayFiles.Count
+  else
+    Count := 0;
+  AHashedFiles := TPointerSet.Create(Count);
+  AHashedNames := TStringHashListUtf8.Create(True);
+  AHashedNames.BeginBulk(Count);
+  for i := 0 to Count - 1 do
+  begin
+    AFile := aDisplayFiles[i].FSFile;
+    AHashedFiles.Add(aDisplayFiles[i]);
+    AHashedNames.Add(FileHashKey(AFile.Name, AFile.Path, AFlatView), aDisplayFiles[i]);
+  end;
+  AHashedNames.EndBulk;
+end;
+
+procedure TFileListBuilder.AddUpDirIfNeeded(AFiles: TFiles);
 var
   AFile: TFile;
-  I: Integer;
+  i: Integer;
   HaveUpDir: Boolean = False;
+begin
+  // Check if up-dir '..' is present.
+  // If it is present it will usually be the first file.
+  for i := 0 to AFiles.Count - 1 do
+  begin
+    if AFiles[i].Name = '..' then
+    begin
+      HaveUpDir := True;
+      Break;
+    end;
+  end;
+
+  if (not HaveUpDir) and
+     ((not FFileSource.IsPathAtRoot(FCurrentPath)) or
+      // Add '..' to go to higher level file source, if there is more than one.
+      ((FFileSourceIndex > 0) and not (fspNoneParent in FFileSource.Properties))
+{$IFDEF MSWINDOWS}
+      // A drive root's parent is the shell "This PC" folder.
+      or TShellFileSource.HasComputerParent(FFileSource, FCurrentPath)
+{$ENDIF}
+     ) then
+  begin
+    AFile := FFileSource.CreateFileObject(FCurrentPath);
+    AFile.Name := '..';
+    if fpAttributes in AFile.SupportedProperties then
+    begin
+      if AFile.AttributesProperty is TNtfsFileAttributesProperty then
+        AFile.Attributes := FILE_ATTRIBUTE_DIRECTORY
+      else if AFile.AttributesProperty is TUnixFileAttributesProperty then
+        AFile.Attributes := S_IFDIR
+      else
+        AFile.Attributes := faFolder;
+    end;
+    AFiles.Insert(AFile, 0);
+  end;
+end;
+
+procedure TFileListBuilder.RetrieveSortingProperties(AFiles: TFiles);
+var
+  I: Integer;
+begin
+  if (FFilePropertiesNeeded <> []) and Assigned(AFiles) then
+  begin
+    for I := 0 to AFiles.Count - 1 do
+      FFileSource.RetrieveProperties(AFiles[I], FFilePropertiesNeeded, FVariantProperties);
+  end;
+end;
+
+procedure TFileListBuilder.ListOperationProgress(Sender: TObject);
+const
+  // A partial publish may cost at most this fraction (1/N) of the time
+  // elapsed since the previous one.
+  PublishCostFactor = 3;
+var
+  Count, Size, i: Integer;
+  Publish: Boolean;
+  CostMs: Double;
+  StartTick, ElapsedMs: QWord;
+  SourceFiles: TFiles;
+  AFiles: TFiles;
+  AAllFiles: TDisplayFiles = nil;
+  AFilteredFiles: TDisplayFiles = nil;
+begin
+  // Runs on the worker thread, inside the list operation's Execute.
+  if Aborted then Exit;
+
+  SourceFiles := TFileSourceListOperation(Sender).Files;
+  Count := SourceFiles.Count;
+
+  // Decide whether to publish a partial list now.
+  //
+  // A partial list is a prefix of what has been listed so far: it starts at
+  // gProgressiveListingMinFiles and doubles each time, so the first files are
+  // on screen almost immediately and the list grows from there. Building one
+  // costs the worker (and pauses the listing) roughly PerFileCost * Size, so a
+  // publish is only allowed when that cost is small compared to the time
+  // since the previous publish. This bounds the total overhead to about
+  // 1/PublishCostFactor of the wall time, for fast local disks and slow
+  // network shares alike.
+  Publish := Assigned(FPartialFileListMethod) and (Count >= gProgressiveListingMinFiles);
+  if Publish then
+  begin
+    Size := FLastPartialCount * 2;
+    if Size < gProgressiveListingMinFiles then
+      Size := gProgressiveListingMinFiles;
+    if Size > Count then
+      Size := Count;
+    Publish := Size > FLastPartialCount;
+    if Publish then
+    begin
+      CostMs := Size * FPerFileCostUs / 1000;
+      Publish := (GetTickCount64 - FLastPublishTick) >= PublishCostFactor * CostMs;
+    end;
+  end;
+
+  if Publish then
+  begin
+    StartTick := GetTickCount64;
+    // The operation keeps ownership of its TFile objects until it finishes,
+    // so the partial display list is built from clones.
+    AFiles := TFiles.Create(SourceFiles.Path);
+    try
+      for i := 0 to Size - 1 do
+        AFiles.Add(SourceFiles[i].Clone);
+      AddUpDirIfNeeded(AFiles);
+      RetrieveSortingProperties(AFiles);
+      AAllFiles := TDisplayFiles.Create(True);
+      MakeAllDisplayFileList(FFileSource, AFiles, AAllFiles, FSortings);
+      // TFile objects now belong to the display files.
+      AFiles.OwnsObjects := False;
+    finally
+      AFiles.Free;
+    end;
+    AFilteredFiles := TDisplayFiles.Create(False);
+    MakeDisplayFileList(FFileSource, AAllFiles, AFilteredFiles, FFileFilter, FFilterOptions);
+
+    if Aborted then
+    begin
+      AFilteredFiles.Free;
+      AAllFiles.Free;
+      Exit;
+    end;
+
+    BuildFileHashes(AAllFiles, FFlatView, FPartialHashedFiles, FPartialHashedNames);
+
+    // Measured cost of this build, used to pace the next one.
+    ElapsedMs := GetTickCount64 - StartTick;
+    if ElapsedMs < 1 then ElapsedMs := 1;
+    FPerFileCostUs := ElapsedMs * 1000 / Size;
+
+    {$IFDEF timeFileView}
+    DCDebug('Partial list publish: size=%d of %d build=%dms perFile=%.1fus',
+      [Size, Count, ElapsedMs, FPerFileCostUs]);
+    {$ENDIF}
+
+    FPartialAllDisplayFiles := AAllFiles;
+    FPartialFilteredDisplayFiles := AFilteredFiles;
+    TThread.Synchronize(Thread, @DoSetPartialFileList);
+    // What is left here is either our lists (the view didn't take them) or the
+    // view's previous lists (handed back to be freed off the GUI thread).
+    FreeAndNil(FPartialFilteredDisplayFiles);
+    FreeAndNil(FPartialAllDisplayFiles);
+    FreeAndNil(FPartialHashedFiles);
+    FreeAndNil(FPartialHashedNames);
+
+    FLastPartialCount := Size;
+    FLastPublishTick := GetTickCount64;
+  end
+  else if Assigned(FLoadingProgressMethod) then
+  begin
+    FProgressCount := Count;
+    TThread.Synchronize(Thread, @DoLoadingProgress);
+  end;
+end;
+
+procedure TFileListBuilder.DoSetPartialFileList;
+begin
+  // Note: unlike DoSetFileList this does not call DoneWorking - the list
+  // operation is still running.
+  if not Aborted and Assigned(FPartialFileListMethod) then
+    FPartialFileListMethod(FPartialAllDisplayFiles, FPartialFilteredDisplayFiles,
+                           FPartialHashedFiles, FPartialHashedNames);
+end;
+
+procedure TFileListBuilder.DoLoadingProgress;
+begin
+  if not Aborted and Assigned(FLoadingProgressMethod) then
+    FLoadingProgressMethod(FProgressCount);
+end;
+
+procedure TFileListBuilder.Execute;
+var
   FileSourceFiles: TFiles = nil;
 begin
   try
@@ -472,6 +738,12 @@ begin
         FListOperation.FlatView := FFlatView;
         FListOperation.FlatViewDirs := FFlatViewDirs;
         FListOperation.AssignThread(Thread);
+        if Assigned(FPartialFileListMethod) or Assigned(FLoadingProgressMethod) then
+        begin
+          FLastPublishTick := GetTickCount64;
+          FPerFileCostUs := 20; // initial guess, replaced by measurement after the first publish
+          FListOperation.OnProgress := @ListOperationProgress;
+        end;
         FListOperation.Execute;
         if FListOperation.Result = fsorFinished then
           FileSourceFiles := FListOperation.ReleaseFiles;
@@ -493,52 +765,13 @@ begin
       Exit;
 
     if Assigned(FileSourceFiles) then
-    begin
-      // Check if up-dir '..' is present.
-      // If it is present it will usually be the first file.
-      for i := 0 to FileSourceFiles.Count - 1 do
-      begin
-        if FileSourceFiles[i].Name = '..' then
-        begin
-          HaveUpDir := True;
-          Break;
-        end;
-      end;
-
-      if (not HaveUpDir) and
-         ((not FFileSource.IsPathAtRoot(FCurrentPath)) or
-          // Add '..' to go to higher level file source, if there is more than one.
-          ((FFileSourceIndex > 0) and not (fspNoneParent in FFileSource.Properties))
-{$IFDEF MSWINDOWS}
-          // A drive root's parent is the shell "This PC" folder.
-          or TShellFileSource.HasComputerParent(FFileSource, FCurrentPath)
-{$ENDIF}
-         ) then
-      begin
-        AFile := FFileSource.CreateFileObject(FCurrentPath);
-        AFile.Name := '..';
-        if fpAttributes in AFile.SupportedProperties then
-        begin
-          if AFile.AttributesProperty is TNtfsFileAttributesProperty then
-            AFile.Attributes := FILE_ATTRIBUTE_DIRECTORY
-          else if AFile.AttributesProperty is TUnixFileAttributesProperty then
-            AFile.Attributes := S_IFDIR
-          else
-            AFile.Attributes := faFolder;
-        end;
-        FileSourceFiles.Insert(AFile, 0);
-      end;
-    end;
+      AddUpDirIfNeeded(FileSourceFiles);
 
     if Aborted then
       Exit;
 
     // Retrieve RetrievableFileProperties which used in sorting
-    if FFilePropertiesNeeded <> [] then
-    begin
-      for I:= 0 to FileSourceFiles.Count - 1 do
-        FFileSource.RetrieveProperties(FileSourceFiles[I], FFilePropertiesNeeded, FVariantProperties);
-    end;
+    RetrieveSortingProperties(FileSourceFiles);
 
     // Make display file list from file source file list.
     if Assigned(FAllDisplayFiles) and Assigned(FExistingDisplayFilesHashed) then
@@ -575,6 +808,8 @@ begin
     if Aborted then
       Exit;
 
+    BuildFileHashes(FAllDisplayFiles, FFlatView, FHashedFiles, FHashedNames);
+
     // Loading file list is complete. Update grid with the new file list.
     TThread.Synchronize(Thread, @DoSetFilelist);
 
@@ -587,9 +822,13 @@ begin
     filelistPrintTime('Finished            : ');
     {$ENDIF}
 
+    // Either our own lists (aborted / not taken) or the view's previous lists,
+    // handed back so that they are freed here and not on the GUI thread.
     FreeAndNil(FFilteredDisplayFiles);
     FreeAndNil(FileSourceFiles);
     FreeAndNil(FAllDisplayFiles);
+    FreeAndNil(FHashedFiles);
+    FreeAndNil(FHashedNames);
   end;
 end;
 
@@ -894,7 +1133,7 @@ procedure TFileListBuilder.DoSetFileList;
 begin
   DoneWorking;
   if not Aborted and Assigned(FSetFileListMethod) then
-    FSetFileListMethod(FAllDisplayFiles, FFilteredDisplayFiles);
+    FSetFileListMethod(FAllDisplayFiles, FFilteredDisplayFiles, FHashedFiles, FHashedNames);
 end;
 
 { TFilePropertiesRetriever }

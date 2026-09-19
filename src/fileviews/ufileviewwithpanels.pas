@@ -50,6 +50,7 @@ type
     procedure DisplayFileListChanged; override;
     procedure DoActiveChanged; override;
     procedure DoSelectionChanged; override;
+    procedure DoLoadingFileListProgress; override;
     procedure ShowPathEdit;
     procedure DoUpdateView; override;
     procedure UpdateFlatFileName; virtual;
@@ -204,9 +205,12 @@ var
   SizeProperty: TFileSizeProperty;
 begin
   FSelectedCount := 0;
-  if GetCurrentWorkType = fvwtCreate then
+  if IsLoadingFileList then
   begin
-    lblInfo.Caption := rsMsgLoadingFileList;
+    if LoadingFileListCount > 0 then
+      lblInfo.Caption := Format(rsMsgLoadingFileListCount, [IntToStrTS(LoadingFileListCount)])
+    else
+      lblInfo.Caption := rsMsgLoadingFileList;
   end
   else if not Assigned(FAllDisplayFiles) or (FAllDisplayFiles.Count = 0) then
   begin
@@ -266,9 +270,19 @@ begin
                                  FilesInDir,
                                  FolderSelected,
                                  FolderInDir]);
+
+    // Partial list of a directory that is still being listed.
+    if PartialFileListShown and (GetCurrentWorkType = fvwtCreate) then
+      lblInfo.Caption := lblInfo.Caption + ' ' + rsMsgStillLoadingFileList;
   end
   else if not (csDestroying in ComponentState) then
     lblInfo.Caption := '';
+end;
+
+procedure TFileViewWithPanels.DoLoadingFileListProgress;
+begin
+  inherited DoLoadingFileListProgress;
+  UpdateInfoPanel;
 end;
 
 end.

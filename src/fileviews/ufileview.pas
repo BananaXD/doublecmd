@@ -31,7 +31,8 @@ uses
   uFindFiles, Classes, SysUtils, Controls, ExtCtrls, Graphics, ComCtrls, contnrs, fgl, LMessages,
   uFile, uDisplayFile, uFileSource, uFormCommands, uDragDropEx, DCXmlConfig, DCBasicTypes,
   DCClassesUtf8, uFileSorting, uFileViewHistory, uFileProperty, uFileViewWorker,
-  uFunctionThread, uFileSourceWatcher, fQuickSearch, DCStringHashListUtf8, uGlobs;
+  uFunctionThread, uFileSourceWatcher, fQuickSearch, DCStringHashListUtf8, uGlobs,
+  uPointerSet;
 
 type
 
@@ -112,7 +113,7 @@ type
     FFilePropertiesNeeded: TFilePropertiesTypes;
     FFileViewWorkers: TFileViewWorkers;
     FFlags: TFileViewFlags;
-    FHashedFiles: TBucketList;  //<en Contains pointers to file source files for quick checking if a file object is still valid
+    FHashedFiles: TPointerSet;  //<en Contains pointers to file source files for quick checking if a file object is still valid
     FHashedNames: TStringHashListUtf8;
     FPendingFilesChanges: TFPList;
     FPendingFilesTimer: TTimer;
@@ -146,6 +147,11 @@ type
     FLastLoadedFileSource: IFileSource;
     FLastLoadedPath: String;
     FLoadingFileListLongTime: Boolean;
+    // Progressive listing: a partial list of the directory being loaded is
+    // already displayed (the create worker is still running).
+    FPartialFileListShown: Boolean;
+    // Files listed so far, reported while loading (0 = unknown).
+    FLoadingFileListCount: Integer;
     FMethods: TFormCommands;
     FForceReload: Boolean;
 
@@ -213,7 +219,35 @@ type
        Assigns the built lists to the file view and displays new the file list.
     }
     procedure SetFileList(var NewAllDisplayFiles: TDisplayFiles;
-                          var NewFilteredDisplayFiles: TDisplayFiles);
+                          var NewFilteredDisplayFiles: TDisplayFiles;
+                          var NewHashedFiles: TPointerSet;
+                          var NewHashedNames: TStringHashListUtf8);
+    {en
+       Displays a partial list of a directory that is still being listed
+       (progressive listing). Called from the GUI thread by the worker;
+       the final list arrives later through SetFileList.
+    }
+    procedure SetPartialFileList(var NewAllDisplayFiles: TDisplayFiles;
+                                 var NewFilteredDisplayFiles: TDisplayFiles;
+                                 var NewHashedFiles: TPointerSet;
+                                 var NewHashedNames: TStringHashListUtf8);
+    {en
+       Swaps in the lists built by the worker. The previous lists are returned
+       in the var parameters so the worker frees them off the GUI thread.
+       Returns True if the hash tables were taken (else HashFileList is needed).
+    }
+    function TakeFileLists(var NewAllDisplayFiles: TDisplayFiles;
+                           var NewFilteredDisplayFiles: TDisplayFiles;
+                           var NewHashedFiles: TPointerSet;
+                           var NewHashedNames: TStringHashListUtf8): Boolean;
+    {en
+       Number of files listed so far while the file list is still loading.
+    }
+    procedure SetLoadingFileListProgress(ACount: Integer);
+    {en
+       Copies the Selected flags from OldFiles to the same-named files in NewFiles.
+    }
+    procedure CarrySelectionOver(OldFiles, NewFiles: TDisplayFiles);
     procedure SetFlatView(AFlatView: Boolean);
 
     procedure ActivateEvent(Sender: TObject);
@@ -276,6 +310,13 @@ type
     function GetWorkersThread: TFunctionThread;
     procedure InvertFileSelection(AFile: TDisplayFile; bNotify: Boolean = True);
     function IsLoadingFileList: Boolean; inline;
+    {en
+       True while a partial list of the directory being loaded is displayed
+       (progressive listing). IsLoadingFileList is False then, so the user can
+       already browse; the create worker is still running though.
+    }
+    property PartialFileListShown: Boolean read FPartialFileListShown;
+    property LoadingFileListCount: Integer read FLoadingFileListCount;
     function IsVisibleToUser: Boolean;
     procedure Notify(NewNotifications: TFileViewNotifications);
     procedure PropertiesRetrieverOnUpdate(const UpdatedFile: TDisplayFile;
@@ -307,6 +348,11 @@ type
     }
     procedure DoHandleKeyDownWhenLoading(var Key: Word; {%H-}Shift: TShiftState); virtual;
     procedure DoLoadingFileListLongTime; virtual;
+    {en
+       Called (GUI thread) when the number of files listed so far changes
+       while the file list is still loading. See LoadingFileListCount.
+    }
+    procedure DoLoadingFileListProgress; virtual;
     procedure DoSelectionChanged; virtual;
     procedure DoUpdateView; virtual;
     {en
@@ -1023,6 +1069,11 @@ begin
   RedrawFiles;
 end;
 
+procedure TFileView.DoLoadingFileListProgress;
+begin
+  // Empty.
+end;
+
 function TFileView.FileListLoaded: Boolean;
 begin
   Result := Assigned(FAllDisplayFiles);
@@ -1086,11 +1137,7 @@ end;
 
 function TFileView.calcFileHashKey(const FileName, APath: String): String;
 begin
-  if FFlatView then begin
-    Result := ExcludeTrailingPathDelimiter( IncludeTrailingPathDelimiter(APath) + FileName );
-  end else begin
-    Result := FileName;
-  end;
+  Result := FileHashKey(FileName, APath, FFlatView);
 end;
 
 procedure TFileView.AddFile(const FileName, APath: String; NewFilesPosition: TNewFilesPosition; UpdatedFilesPosition: TUpdatedFilesPosition);
@@ -1119,7 +1166,7 @@ begin
     end;
     ADisplayFile := TDisplayFile.Create(AFile);
     ADisplayFile.DisplayName:= FileSource.GetDisplayFileName(AFile);
-    FHashedFiles.Add(ADisplayFile, nil);
+    FHashedFiles.Add(ADisplayFile);
     FHashedNames.Add(AFileKey, ADisplayFile);
     InsertFile(ADisplayFile, FAllDisplayFiles, NewFilesPosition);
     if not TFileListBuilder.MatchesFilter(FileSource, ADisplayFile.FSFile, FileFilter, FFilterOptions) then
@@ -2162,6 +2209,8 @@ var
   AThread: TFunctionThread = nil;
   ClonedDisplayFiles: TDisplayFiles = nil;
   DisplayFilesHashed: TStringHashListUtf8 = nil;
+  PartialFileListMethod: TSetFileListMethod;
+  LoadingProgressMethod: TLoadingProgressMethod;
   i: Integer;
 begin
   if (csDestroying in ComponentState) or (FileSourcesCount = 0) or
@@ -2190,12 +2239,27 @@ begin
     ClonedDisplayFiles := FAllDisplayFiles.Clone(False);
     DisplayFilesHashed := TStringHashListUtf8.Create(True);
     // Map filename to display file.
+    DisplayFilesHashed.BeginBulk(FAllDisplayFiles.Count);
     for i := 0 to FAllDisplayFiles.Count - 1 do
       DisplayFilesHashed.Add(FAllDisplayFiles[i].FSFile.FullPath, ClonedDisplayFiles[i]);
+    DisplayFilesHashed.EndBulk;
   end;
 
   // Drop FForceReload flag
   FForceReload := False;
+
+  // Progressive listing only when loading in a thread (the GUI must be able
+  // to paint between updates) and only for a fresh directory: on a reload of
+  // the already displayed list the user keeps seeing the old list until the
+  // new one is complete, which preserves selection and cursor.
+  if (AThread <> nil) and gProgressiveListing and (ClonedDisplayFiles = nil) then
+    PartialFileListMethod := @SetPartialFileList
+  else
+    PartialFileListMethod := nil;
+  if AThread <> nil then
+    LoadingProgressMethod := @SetLoadingFileListProgress
+  else
+    LoadingProgressMethod := nil;
 
   Worker := TFileListBuilder.Create(
     FileSource,
@@ -2211,7 +2275,9 @@ begin
     GetVariantFileProperties,
     @SetFileList,
     ClonedDisplayFiles,
-    DisplayFilesHashed);
+    DisplayFilesHashed,
+    PartialFileListMethod,
+    LoadingProgressMethod);
 
   AddWorker(Worker);
 
@@ -2261,6 +2327,8 @@ end;
 
 procedure TFileView.BeforeMakeFileList;
 begin
+  FPartialFileListShown := False;
+  FLoadingFileListCount := 0;
   FLoadingFileListLongTimer.Enabled := True;
 end;
 
@@ -2370,24 +2438,11 @@ begin
 end;
 
 procedure TFileView.HashFileList;
-var
-  i: Integer;
-  AFile: TFile;
 begin
   // Cannot use FHashedFiles.Clear because it also destroys the buckets.
   FHashedFiles.Free;
-  // TBucketList seems to do fairly well without needing a proper hash table.
-  FHashedFiles := TBucketList.Create(bl256);
-  FHashedNames.Clear;
-  if Assigned(FAllDisplayFiles) then
-  begin
-    for i := 0 to FAllDisplayFiles.Count - 1 do
-    begin
-      AFile := FAllDisplayFiles[i].FSFile;
-      FHashedFiles.Add(FAllDisplayFiles[i], nil);
-      FHashedNames.Add( calcFileHashKey(AFile.Name,AFile.Path) , FAllDisplayFiles[i] );
-    end;
-  end;
+  FHashedNames.Free;
+  TFileListBuilder.BuildFileHashes(FAllDisplayFiles, FFlatView, FHashedFiles, FHashedNames);
 end;
 
 procedure TFileView.InsertFile(ADisplayFile: TDisplayFile; AFileList: TDisplayFiles; NewFilesPosition: TNewFilesPosition);
@@ -2457,7 +2512,7 @@ end;
 
 function TFileView.IsReferenceValid(aFile: TDisplayFile): Boolean;
 begin
-  Result := FHashedFiles.Exists(aFile);
+  Result := FHashedFiles.Contains(aFile);
 end;
 
 function TFileView.IsEmpty: Boolean;
@@ -2475,7 +2530,9 @@ end;
 
 function TFileView.IsLoadingFileList: Boolean;
 begin
-  Result := GetCurrentWorkType = fvwtCreate;
+  // With a partial list on screen the view is usable even though the
+  // create worker is still running.
+  Result := (GetCurrentWorkType = fvwtCreate) and not FPartialFileListShown;
 end;
 
 function TFileView.Reload(const PathsToReload: TPathsArray = nil): Boolean;
@@ -3373,26 +3430,34 @@ begin
 end;
 
 procedure TFileView.SetFileList(var NewAllDisplayFiles: TDisplayFiles;
-  var NewFilteredDisplayFiles: TDisplayFiles);
+  var NewFilteredDisplayFiles: TDisplayFiles;
+  var NewHashedFiles: TPointerSet;
+  var NewHashedNames: TStringHashListUtf8);
 var
   ARequests: TFileViewRequests;
+  HashesTaken: Boolean;
 begin
   ClearRecentlyUpdatedFiles;
 
-  FFiles.Free;
-  FFiles := NewFilteredDisplayFiles;
-  NewFilteredDisplayFiles := nil;
+  // The user may have selected files in the partial list while the rest
+  // was still loading - keep that selection.
+  if FPartialFileListShown then
+    CarrySelectionOver(FAllDisplayFiles, NewAllDisplayFiles);
+  FPartialFileListShown := False;
+  FLoadingFileListCount := 0;
 
-  FAllDisplayFiles.Free;
-  FAllDisplayFiles := NewAllDisplayFiles;
-  NewAllDisplayFiles := nil;
+  HashesTaken := TakeFileLists(NewAllDisplayFiles, NewFilteredDisplayFiles,
+                               NewHashedFiles, NewHashedNames);
 
   FLastLoadedFileSource := FileSource;
   FLastLoadedPath := CurrentPath;
 
   BeginUpdate;
   try
-    ARequests := [fvrqHashFileList];
+    if HashesTaken then
+      ARequests := []
+    else
+      ARequests := [fvrqHashFileList];
     if not FReloadNeeded then
       Include(ARequests, fvrqApplyPendingFilesChanges)
     else
@@ -3407,6 +3472,122 @@ begin
   // Regardless if it is there or not it should be cleared so that it doesn't
   // get selected on further reloads.
   RequestedActiveFile := '';
+end;
+
+procedure TFileView.SetPartialFileList(var NewAllDisplayFiles: TDisplayFiles;
+  var NewFilteredDisplayFiles: TDisplayFiles;
+  var NewHashedFiles: TPointerSet;
+  var NewHashedNames: TStringHashListUtf8);
+var
+  HashesTaken: Boolean;
+begin
+  if csDestroying in ComponentState then Exit;
+
+  ClearRecentlyUpdatedFiles;
+
+  if FPartialFileListShown then
+    CarrySelectionOver(FAllDisplayFiles, NewAllDisplayFiles);
+
+  HashesTaken := TakeFileLists(NewAllDisplayFiles, NewFilteredDisplayFiles,
+                               NewHashedFiles, NewHashedNames);
+
+  FPartialFileListShown := True;
+  FLoadingFileListCount := FAllDisplayFiles.Count;
+  // Stop dimming the panel: there is something usable to look at now.
+  SetLoadingFileListLongTime(False);
+
+  // Deliberately not done here (SetFileList does it when the list is final):
+  // - FLastLoadedFileSource/Path: the list is incomplete;
+  // - pending watcher changes: applied once, to the final list;
+  // - fvnFileSourceFileListLoaded: it would reset the cursor on every update;
+  // - RequestedActiveFile: DisplayFileListChanged clears it once found.
+  BeginUpdate;
+  try
+    if not HashesTaken then
+      Request([fvrqHashFileList]);
+    Notify([fvnDisplayFileListChanged]);
+  finally
+    EndUpdate;
+  end;
+end;
+
+function TFileView.TakeFileLists(var NewAllDisplayFiles: TDisplayFiles;
+  var NewFilteredDisplayFiles: TDisplayFiles;
+  var NewHashedFiles: TPointerSet;
+  var NewHashedNames: TStringHashListUtf8): Boolean;
+var
+  OldAll, OldFiltered: TDisplayFiles;
+  OldHashedFiles: TPointerSet;
+  OldHashedNames: TStringHashListUtf8;
+  i: Integer;
+begin
+  OldAll := FAllDisplayFiles;
+  OldFiltered := FFiles;
+  FAllDisplayFiles := NewAllDisplayFiles;
+  FFiles := NewFilteredDisplayFiles;
+
+  Result := Assigned(NewHashedFiles) and Assigned(NewHashedNames);
+  if Result then
+  begin
+    OldHashedFiles := FHashedFiles;
+    OldHashedNames := FHashedNames;
+    FHashedFiles := NewHashedFiles;
+    FHashedNames := NewHashedNames;
+  end
+  else
+  begin
+    OldHashedFiles := nil;
+    OldHashedNames := nil;
+  end;
+
+  // Bitmaps (thumbnails) are GUI objects - release them here, on the GUI
+  // thread. Everything else in the old lists is plain data and can be freed
+  // by the worker.
+  if Assigned(OldAll) then
+    for i := 0 to OldAll.Count - 1 do
+      if Assigned(OldAll[i].Icon) then
+        OldAll[i].Icon := nil;
+
+  NewAllDisplayFiles := OldAll;
+  NewFilteredDisplayFiles := OldFiltered;
+  NewHashedFiles := OldHashedFiles;
+  NewHashedNames := OldHashedNames;
+end;
+
+procedure TFileView.SetLoadingFileListProgress(ACount: Integer);
+begin
+  if csDestroying in ComponentState then Exit;
+  if FLoadingFileListCount <> ACount then
+  begin
+    FLoadingFileListCount := ACount;
+    // With a partial list on screen the info panel shows that list's stats;
+    // recomputing them every progress tick would be wasted work.
+    if not FPartialFileListShown then
+      DoLoadingFileListProgress;
+  end;
+end;
+
+procedure TFileView.CarrySelectionOver(OldFiles, NewFiles: TDisplayFiles);
+var
+  i, j: Integer;
+  SelectedNames: TStringHashListUtf8;
+begin
+  if not (Assigned(OldFiles) and Assigned(NewFiles)) then Exit;
+
+  SelectedNames := TStringHashListUtf8.Create(True);
+  try
+    for i := 0 to OldFiles.Count - 1 do
+      if OldFiles[i].Selected then
+        SelectedNames.Add(OldFiles[i].FSFile.FullPath);
+
+    if SelectedNames.Count = 0 then Exit;
+
+    for j := 0 to NewFiles.Count - 1 do
+      if SelectedNames.Find(NewFiles[j].FSFile.FullPath) >= 0 then
+        NewFiles[j].Selected := True;
+  finally
+    SelectedNames.Free;
+  end;
 end;
 
 procedure TFileView.EnableWatcher(Enable: Boolean);
@@ -3759,8 +3940,10 @@ begin
   case GetCurrentWorkType of
     fvwtNone: ; // Ok to continue.
     fvwtCreate:
-      // File list is being loaded from file source - cannot display yet.
-      Exit;
+      // File list is being loaded from file source - cannot display yet,
+      // unless a partial list is already on screen (it lives on the GUI thread).
+      if not FPartialFileListShown then
+        Exit;
     fvwtUpdate:
       StopWorkers;
     else

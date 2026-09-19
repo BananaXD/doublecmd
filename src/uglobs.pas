@@ -432,6 +432,11 @@ var
   gDriveBlackList: String;
   gDriveBlackListUnmounted: Boolean; // Automatically black list unmounted devices
   gListFilesInThread: Boolean;
+  // Show big directories progressively while they are still being listed
+  // (partial list first, grows until the listing finishes).
+  gProgressiveListing: Boolean;
+  // Directories with fewer files than this are shown all at once.
+  gProgressiveListingMinFiles: Integer;
   gLoadIconsSeparately: Boolean;
   gDelayLoadingTabs: Boolean;
   gHighlightUpdatedFiles: Boolean;
@@ -1958,6 +1963,8 @@ begin
   // Under Mac OS X loading file list in separate thread are very very slow
   // so disable and hide this option under Mac OS X Carbon
   gListFilesInThread := {$IFDEF LCLCARBON}False{$ELSE}True{$ENDIF};
+  gProgressiveListing := True;
+  gProgressiveListingMinFiles := 1000;
   gLoadIconsSeparately := True;
   gDelayLoadingTabs := True;
   gHighlightUpdatedFiles := True;
@@ -2926,6 +2933,8 @@ begin
       // so disable and hide this option under Mac OS X Carbon
       gListFilesInThread := GetValue(Node, 'ListFilesInThread', gListFilesInThread);
       {$ENDIF}
+      gProgressiveListing := GetValue(Node, 'ProgressiveListing', gProgressiveListing);
+      gProgressiveListingMinFiles := GetValue(Node, 'ProgressiveListingMinFiles', gProgressiveListingMinFiles);
       gLoadIconsSeparately := GetValue(Node, 'LoadIconsSeparately', gLoadIconsSeparately);
       gDelayLoadingTabs := GetValue(Node, 'DelayLoadingTabs', gDelayLoadingTabs);
       gHighlightUpdatedFiles := GetValue(Node, 'HighlightUpdatedFiles', gHighlightUpdatedFiles);
@@ -3683,6 +3692,8 @@ begin
     // so disable and hide this option under Mac OS X Carbon
     SetValue(Node, 'ListFilesInThread', gListFilesInThread);
     {$ENDIF}
+    SetValue(Node, 'ProgressiveListing', gProgressiveListing);
+    SetValue(Node, 'ProgressiveListingMinFiles', gProgressiveListingMinFiles);
     SetValue(Node, 'LoadIconsSeparately', gLoadIconsSeparately);
     SetValue(Node, 'DelayLoadingTabs', gDelayLoadingTabs);
     SetValue(Node, 'HighlightUpdatedFiles', gHighlightUpdatedFiles);

@@ -42,12 +42,16 @@ begin
       if FPS_ISDIR(sr.Attr) then
       begin
         if FFlatViewDirs then
+        begin
           FFiles.Add(TFileSystemFileSource.CreateFile(APath, @sr));
+          CheckProgress;
+        end;
         FlatView(APath + sr.Name + DirectorySeparator);
       end
       else begin
         AFile := TFileSystemFileSource.CreateFile(APath, @sr);
         FFiles.Add(AFile);
+        CheckProgress;
       end;
     until FindNextEx(sr) <> 0;
   finally
@@ -104,6 +108,7 @@ begin
 
         AFile := TFileSystemFileSource.CreateFile(Path, @sr);
         FFiles.Add(AFile);
+        CheckProgress;
       until FindNextEx(sr)<>0;
     end;
   finally
