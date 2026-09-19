@@ -1,6 +1,6 @@
 # doublecmd progressive listing — HANDOFF
 
-Updated: 2026-09-19
+Updated: 2026-09-20
 
 ## Goal
 
@@ -20,7 +20,7 @@ with window captures + a GUI-latency probe (WM_NULL every 100 ms):
 | worst GUI stall during load    | ~7 s (hash)   | 58 ms    |
 
 NOT yet tested on the real target `\\beyondinsane\B\Aardvark\books5`
-(1.7M files, 8 min raw enumeration). Uncommitted.
+(1.7M files, 8 min raw enumeration). Committed as 778dc7763, pushed to banana/master.
 
 ## How it works
 
@@ -75,7 +75,7 @@ NOT yet tested on the real target `\\beyondinsane\B\Aardvark\books5`
 
 ## Open / Next
 
-1. Test on the SMB share; then commit (`ADD:` prefix) incl. this handoff.
+1. Test on the SMB share `\beyondinsaneBAardvarkbooks5`.
 2. Sort-order change during a long load is not applied to the final list
    (pre-existing, now more visible). Fix: re-sort in `SetFileList` if
    `SortingForSorter` differs from the worker's captured sortings.
