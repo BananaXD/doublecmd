@@ -9,29 +9,33 @@ Make the fork's preferred key bindings ship as defaults, so anyone pulling
 
 ## Stage
 
-Done and verified. F8 → `cm_MakeDir` (alongside F7), Shift+F8/Del still delete.
+Done, verified, pushed. F7, F8 and Shift+F8 all run `cm_MakeDir`; the bottom
+function-key bar's F8 button is MkDir too. Delete is Del / Shift+Del only.
 Shift+E → `cm_SortByDate` was already a default (since commit 32f679dbd).
 
 ## Changed
 
-- `src/uglobs.pas:176` — `hkVersion` 78 → 79 with changelog comment.
-- `src/uglobs.pas` `LoadDefaultHotkeyBindings` (~line 1190): `< 79` migration
-  removes a parameterless `F8 → cm_Delete`; `cm_MakeDir` now added as
-  `['F7','','','F8','','']` with `OldShortcuts=['F7']`; `cm_Delete` default is
-  only `Shift+F8 trashcan=reversesetting` (plus Del/Shift+Del further down).
+- `src/uglobs.pas:176` — `hkVersion` 78 → 80 with changelog comments (79, 80).
+- `src/uglobs.pas` `LoadDefaultHotkeyBindings` (~line 1190): `< 80` migration
+  removes `F8`/`Shift+F8 → cm_Delete` and the interim v79 `F8 → cm_MakeDir`;
+  `cm_MakeDir` added as F7/F8/Shift+F8 with `OldShortcuts=['F7']`.
+- `src/fmain.lfm` `btnF8`: `Action = actMakeDir`, caption "Directory", no
+  click/mousedown handlers. `src/fmain.pas`: `btnF8Click` and
+  `btnF8MouseDown` (trash context menu on right-click) deleted.
 - `doc/last_updated.md` — item 18.
 
 ## Decisions
 
 - Migration via hkVersion, not just a new default: `AddIfNotExists` never
-  overrides an existing binding, so without removing F8 from `cm_Delete`
-  existing users would never get F8 = MkDir.
-- The bottom function-key bar button `btnF8` (`src/fmain.pas:1407`) still
-  deletes and reads "Delete". Left as is; only the key was requested.
+  overrides an existing binding, and its `OldShortcuts` overload only adds
+  when every existing entry for the command equals the old set. So the
+  migration strips F8 from `cm_MakeDir` too before re-adding F7/F8/Shift+F8.
+- Right-click trash context menu on the F8 bar button dropped with the
+  button's delete role; still reachable elsewhere (trash can in drive bar).
 
 ## Open / Next
 
-- Decide whether `btnF8` should also become MkDir (caption in `src/fmain.lfm:1018`).
+- Nothing pending for this effort.
 
 ## Gotchas
 
@@ -39,5 +43,8 @@ Shift+E → `cm_SortByDate` was already a default (since commit 32f679dbd).
   `%APPDATA%\doublecmd\shortcuts.scf` into a temp dir and run
   `doublecmd.exe --no-splash --config-dir=<tmp> -L C:\ -R C:\`, close with
   `CloseMainWindow()`, then inspect the saved `shortcuts.scf` (Version attr).
-- First build after the edit hit the stale-PPU `EListError` flake; `clean.bat`
-  + `build.bat components` + lazbuild fixed it (see memory windows-build-setup).
+- Every build this session hit the stale-PPU `EListError` flake on first try;
+  `clean.bat` + `build.bat components` + lazbuild fixed it (~35 s). A running
+  instance locks `doublecmd.exe.old`, so rename to a fresh name (`.old2`).
+- `C:\cc\cc-docs\sync.ps1` aborts on git's CRLF warning (PowerShell treats
+  stderr as an error) and leaves the file staged; commit/push in cc-docs by hand.

@@ -586,8 +586,6 @@ type
       {%H-}MousePos: TPoint; var {%H-}Handled: Boolean);
     procedure btnF3MouseWheelUp(Sender: TObject; Shift: TShiftState;
       {%H-}MousePos: TPoint; var {%H-}Handled: Boolean);
-    procedure btnF8MouseDown(Sender: TObject; Button: TMouseButton;
-      {%H-}Shift: TShiftState; X, Y: Integer);
     procedure ConsoleSplitterMoved(Sender: TObject);
     procedure dskToolButtonMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
@@ -599,7 +597,6 @@ type
     procedure mnuAllOperStopClick(Sender: TObject);
     procedure mnuAllOperPauseClick(Sender: TObject);
     procedure mnuAllOperProgressClick(Sender: TObject);
-    procedure btnF8Click(Sender: TObject);
     procedure btnLeftClick(Sender: TObject);
     procedure btnLeftDirectoryHotlistClick(Sender: TObject);
     procedure btnRightClick(Sender: TObject);
@@ -1330,18 +1327,6 @@ begin
   end;
 end;
 
-procedure TfrmMain.btnF8MouseDown(Sender: TObject; Button: TMouseButton;
-  Shift: TShiftState; X, Y: Integer);
-var
-  Point: TPoint;
-begin
-  if Button = mbRight then
-  begin
-    Point := (Sender as TControl).ClientToScreen(Classes.Point(X, Y));
-    ShowTrashContextMenu(Self, Point.X, Point.Y, nil);
-  end;
-end;
-
 procedure TfrmMain.ConsoleSplitterMoved(Sender: TObject);
 var
   AHeight: Integer;
@@ -1402,14 +1387,6 @@ end;
 procedure TfrmMain.mnuAllOperStartClick(Sender: TObject);
 begin
   OperationsManager.UnPauseAll;
-end;
-
-procedure TfrmMain.btnF8Click(Sender: TObject);
-begin
-  if GetKeyShiftStateEx * KeyModifiersShortcut = [ssShift] then
-    Commands.cm_Delete(['trashcan=reversesetting'])
-  else
-    Commands.cm_Delete([]);
 end;
 
 { TfrmMain.btnLeftDirectoryHotlistClick}

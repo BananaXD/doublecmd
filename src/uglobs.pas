@@ -173,7 +173,9 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 79;
+  hkVersion = 80;
+  // 80 - In "Main" context, "Shift+F8" moved from "cm_Delete" to "cm_MakeDir"
+  //      as well (Del/Shift+Del are the only stock delete keys now).
   // 79 - In "Main" context, "F8" moved from "cm_Delete" to "cm_MakeDir"
   //      (F7 and F8 both create a directory; Shift+F8/Del still delete).
   // 77 - In "Main" context, "Ctrl+B"/"Ctrl+Alt+F" for "cm_FlatView" now pass
@@ -1187,18 +1189,28 @@ begin
       AddIfNotExists(['F4'],[],'cm_Edit');
       AddIfNotExists(['F5'],[],'cm_Copy');
       AddIfNotExists(['F6'],[],'cm_Rename');
-      if HotMan.Version < 79 then
+      if HotMan.Version < 80 then
       begin
-        // F8 now creates a directory (same as F7); drop the stock F8 -> cm_Delete
-        // binding so the AddIfNotExists below can claim it. Shift+F8 stays.
+        // F8 and Shift+F8 now create a directory (same as F7); drop the stock
+        // F8/Shift+F8 -> cm_Delete bindings and any F8 -> cm_MakeDir added by
+        // version 79, so the AddIfNotExists below (old shortcut = F7 only) can
+        // re-add the full set. Del/Shift+Del still delete.
         HMHotKey:= Find(['F8']);
         if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_Delete') and
            HMHotKey.SameParams([]) then
           Remove(HMHotKey);
+        HMHotKey:= Find(['Shift+F8']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_Delete') and
+           HMHotKey.SameParams(['trashcan=reversesetting']) then
+          Remove(HMHotKey);
+        HMHotKey:= Find(['F8']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_MakeDir') and
+           HMHotKey.SameParams([]) then
+          Remove(HMHotKey);
       end;
       AddIfNotExists(['F7','','',
-                      'F8','',''],'cm_MakeDir',['F7'],[]);
-      AddIfNotExists(['Shift+F8','','trashcan=reversesetting',''], 'cm_Delete');
+                      'F8','','',
+                      'Shift+F8','',''],'cm_MakeDir',['F7'],[]);
       AddIfNotExists(['F9'],[],'cm_RunTerm');
 
       if HotMan.Version < 44 then

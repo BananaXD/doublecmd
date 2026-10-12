@@ -1015,10 +1015,9 @@ object frmMain: TfrmMain
       Height = 20
       Top = 0
       Width = 97
-      Caption = 'Delete'
+      Action = actMakeDir
+      Caption = 'Directory'
       Flat = True
-      OnClick = btnF8Click
-      OnMouseDown = btnF8MouseDown
       OnMouseWheelDown = btnF3MouseWheelDown
       OnMouseWheelUp = btnF3MouseWheelUp
     end

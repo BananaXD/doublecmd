@@ -285,16 +285,17 @@ On Windows: `clean.bat` + `build.bat components`, then
 `C:\lazarus\lazbuild.exe src\doublecmd.lpi --bm=release` (rename a running
 `doublecmd.exe` to `doublecmd.exe.old` first, or linking fails with error 5).
 
-18. **F8 = make directory, same as F7** (2026-10-12) — `src/uglobs.pas`
-    `LoadDefaultHotkeyBindings`: `cm_MakeDir` is now `['F7','','','F8','','']`
+18. **F8 and Shift+F8 = make directory, same as F7** (2026-10-12) — `src/uglobs.pas`
+    `LoadDefaultHotkeyBindings`: `cm_MakeDir` is now `F7`, `F8`, `Shift+F8`
     (added via the `OldShortcuts=['F7']` overload so profiles that only have F7
-    gain F8); `cm_Delete` keeps `Shift+F8` and `Del`/`Shift+Del` only.
-    hkVersion 78 → 79; the `< 79` migration removes a stock parameterless
-    `F8 → cm_Delete` first (AddIfNotExists never overrides, item-12 lesson).
-    Verified by launching with `--config-dir` on a copy of the live
-    `shortcuts.scf` (78 → 79, F8 rebound) and on an empty dir (fresh defaults).
-    Not changed: the bottom function-key bar's `btnF8` still runs `cm_Delete`
-    with caption "Delete" (`src/fmain.pas:1407`).
+    gain the rest); `cm_Delete` keeps only `Del`/`Shift+Del`.
+    hkVersion 78 → 80; the `< 80` migration removes stock `F8`/`Shift+F8 →
+    cm_Delete` and the interim v79 `F8 → cm_MakeDir` first (AddIfNotExists never
+    overrides, item-12 lesson). The bottom function-key bar's `btnF8` now uses
+    `Action = actMakeDir` (`src/fmain.lfm`); its click/right-click handlers
+    (`cm_Delete`, trash context menu) were removed from `src/fmain.pas`.
+    Verified with `--config-dir` on copies of a v78 and a v79 `shortcuts.scf`
+    and on an empty dir: all end at Version 80 with the three MkDir keys.
     Shift+E → `cm_SortByDate` (item 4) was already a default; nothing to do.
 
 ## Dropped
