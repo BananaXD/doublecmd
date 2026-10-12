@@ -1,4 +1,4 @@
-# Last Updated — 2026-08-26
+# Last Updated — 2026-10-12
 
 Status log of the Directory Opus-inspired changes. Design doc: `doc/dopus-inspired-usability.md`.
 
@@ -284,6 +284,18 @@ run `./clean.sh && ./build.sh components` then rebuild — stale PPU state.
 On Windows: `clean.bat` + `build.bat components`, then
 `C:\lazarus\lazbuild.exe src\doublecmd.lpi --bm=release` (rename a running
 `doublecmd.exe` to `doublecmd.exe.old` first, or linking fails with error 5).
+
+18. **F8 = make directory, same as F7** (2026-10-12) — `src/uglobs.pas`
+    `LoadDefaultHotkeyBindings`: `cm_MakeDir` is now `['F7','','','F8','','']`
+    (added via the `OldShortcuts=['F7']` overload so profiles that only have F7
+    gain F8); `cm_Delete` keeps `Shift+F8` and `Del`/`Shift+Del` only.
+    hkVersion 78 → 79; the `< 79` migration removes a stock parameterless
+    `F8 → cm_Delete` first (AddIfNotExists never overrides, item-12 lesson).
+    Verified by launching with `--config-dir` on a copy of the live
+    `shortcuts.scf` (78 → 79, F8 rebound) and on an empty dir (fresh defaults).
+    Not changed: the bottom function-key bar's `btnF8` still runs `cm_Delete`
+    with caption "Delete" (`src/fmain.pas:1407`).
+    Shift+E → `cm_SortByDate` (item 4) was already a default; nothing to do.
 
 ## Dropped
 

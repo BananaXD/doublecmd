@@ -173,7 +173,9 @@ type
 
 const
   { Default hotkey list version number }
-  hkVersion = 78;
+  hkVersion = 79;
+  // 79 - In "Main" context, "F8" moved from "cm_Delete" to "cm_MakeDir"
+  //      (F7 and F8 both create a directory; Shift+F8/Del still delete).
   // 77 - In "Main" context, "Ctrl+B"/"Ctrl+Alt+F" for "cm_FlatView" now pass
   //      "dirs=off"/"dirs=on" (flat view without/with directory entries).
   // 76 - In "Main" context, add shortcut "Ctrl+Alt+F" for "cm_FlatView".
@@ -1185,9 +1187,18 @@ begin
       AddIfNotExists(['F4'],[],'cm_Edit');
       AddIfNotExists(['F5'],[],'cm_Copy');
       AddIfNotExists(['F6'],[],'cm_Rename');
-      AddIfNotExists(['F7'],[],'cm_MakeDir');
-      AddIfNotExists(['F8','','',
-                      'Shift+F8','','trashcan=reversesetting',''], 'cm_Delete');
+      if HotMan.Version < 79 then
+      begin
+        // F8 now creates a directory (same as F7); drop the stock F8 -> cm_Delete
+        // binding so the AddIfNotExists below can claim it. Shift+F8 stays.
+        HMHotKey:= Find(['F8']);
+        if Assigned(HMHotKey) and (HMHotKey.Command = 'cm_Delete') and
+           HMHotKey.SameParams([]) then
+          Remove(HMHotKey);
+      end;
+      AddIfNotExists(['F7','','',
+                      'F8','',''],'cm_MakeDir',['F7'],[]);
+      AddIfNotExists(['Shift+F8','','trashcan=reversesetting',''], 'cm_Delete');
       AddIfNotExists(['F9'],[],'cm_RunTerm');
 
       if HotMan.Version < 44 then
